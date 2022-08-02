@@ -8,8 +8,8 @@ Language:
   max_variables: 5
   max_len: 15
   use_constants: True
-  prob_add_const: 0.1
-  prob_mult_const: 0.4
+  prob_add_const: 0.05
+  prob_mult_const: 0.3
   memory_size: 1
   
 Model:
@@ -26,10 +26,16 @@ Model:
   num_features: 10
 
 Train:
-  n_functions_train: 1024
-  n_functions_test: 16
-  batch_size: 8
-  lr: 0.0003
-  gpus: 1
-  epochs: 1
-  weight_length: 1.2
+  Supervised_Training:
+    n_functions_train: [1000, 1000]
+    n_functions_test: [1, 1]
+    batch_size: 8
+    lr: 0.0003
+    gpus: 1
+    epochs: 1
+    weight_length: 1.2
+    precision: 16
+    log_frequency: 100
+
+  Unsupervised_Training:
+    dummy: 6
