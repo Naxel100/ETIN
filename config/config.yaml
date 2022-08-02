@@ -1,0 +1,35 @@
+# Properties of the language to be used
+Language:
+  operators: [['+', 10], ['-', 6], ['*', 6], ['/', 6], ['^2', 3], ['^3', 1],
+              ['^4', 1], ['log', 2], ['exp', 1], ['sqrt', 1], ['sin', 2], ['cos', 2]]
+  prob_terminal: 0.5
+  restrictions: ['no_inverse_parent', 'no_sqrt_in_log', 'no_double_division', 'no_sqrt_in_sqrt', 
+                 'no_trigo_in_log', 'no_trigo_offspring', 'no_log_in_trigo']
+  max_variables: 5
+  max_len: 15
+  use_constants: True
+  prob_add_const: 0.1
+  prob_mult_const: 0.4
+  memory_size: 1
+  
+Model:
+  dim_hidden: 512
+  dropout: 0.1
+  dim_feedforward: 512
+  sinusoidal_embeddings: False
+  bit16: True
+  num_heads: 8
+  inducing_points: 50
+  norm_encoder: True
+  layers_encoder: 5
+  layers_decoder: 5
+  num_features: 10
+
+Train:
+  n_functions_train: 1024
+  n_functions_test: 16
+  batch_size: 8
+  lr: 0.0003
+  gpus: 1
+  epochs: 1
+  weight_length: 1.2
