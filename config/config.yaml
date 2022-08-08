@@ -37,5 +37,10 @@ Train:
     precision: 16
     log_frequency: 100
 
-  Unsupervised_Training:
-    dummy: 6
+  RL_Training:
+    episodes: 1000
+    max_expressions: 1
+    gamma: 0.999
+    complexity_penalty: 0.05
+    squishing_scale: 5
+    lr: 0.0001

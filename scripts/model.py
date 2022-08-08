@@ -33,7 +33,7 @@ class ETIN_model(pl.LightningModule):
         self.cfg = cfg
         self.criterion = nn.CrossEntropyLoss(ignore_index=self.padding_idx, reduction='none')
         self.dropout = nn.Dropout(cfg.dropout)
-        self.softmax = nn.LogSoftmax(dim=-1)
+        self.softmax = nn.Softmax(dim=-1)
         self.info_for_model = info_for_model
     
 
@@ -158,4 +158,4 @@ def create_input(row, language):
     else:
         input_expressions = language.ini_idx*torch.ones(1)
 
-    return obs_data, input_expressions, expr
+    return obs_data, input_expressions, expr  # Alomejor cambiarlo para que sea una namedtuple

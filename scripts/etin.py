@@ -12,6 +12,8 @@ from pytorch_lightning.loggers import CSVLogger
 import numpy as np
 from pytorch_lightning.utilities.seed import seed_everything
 import time
+from collections import deque
+from .expression import Expression
 
 
 class ETIN():
@@ -31,10 +33,10 @@ class ETIN():
         self.etin_model.add_train_cfg(train_cfg.Supervised_Training)
 
         # Supervised training
-        self.supervised_training(train_cfg.Supervised_Training)
+        # self.supervised_training(train_cfg.Supervised_Training)
 
         # Unsupervised training
-        # self.unsupervised_training(train_cfg.Unsupervised_Training)
+        self.rl_training(train_cfg.RL_Training)
                 
     
     def preprocessing(self, data):
@@ -99,3 +101,73 @@ class ETIN():
 
             # Save the model
             # torch.save(self.etin_model.state_dict(), 'tmp/.x2go-alexfm/media/disk/_cygdrive_C_Users_UX331U_DOCUME1_TFG_Code_ETIN/weights/mega_epoch_'+str(mega_epoch)+'.pt')
+
+
+
+    def rl_training(self, train_cfg):
+
+        optimizer = torch.optim.Adam(self.etin_model.parameters(), lr=train_cfg.lr)
+
+        def compute_reward(y_pred, y_true, expression):
+            # Compute NORMALIZED RMSE between the prediction and the actual y and add a penalty for complexity of the expression
+            std_y_true = np.std(y_true)
+            nrmse = np.sqrt(np.mean((y_pred - y_true)**2)) / std_y_true
+            complexity = len(expression.traversal) - 1  # ESTO CAMBIARLO POR UNA BUENA MEDIDA DE COMPLEJIDAD
+            x =  nrmse + complexity * train_cfg.complexity_penalty
+            return train_cfg.squishing_scale / (1 + x)
+
+
+        data = Dataset(train_cfg.episodes, self.language)
+        
+        scores_deque = deque(maxlen=10)
+        super_scores = []
+        for episode, row in enumerate(data):
+            saved_probs = []
+            rewards = []
+            
+            # Generate an episode
+            for t in range(train_cfg.max_expressions):
+                new_expr = Expression(self.language, model=self.etin_model, prev_info=row, record_probabilities=True)
+                # Update prev_info
+                y_pred = new_expr.evaluate(row['X'])
+                if (np.isnan(y_pred).any() or np.abs(y_pred).max() > 1e5 or np.abs(y_pred).min() < 1e-2):
+                    break
+                saved_probs += new_expr.probabilities
+                rewards += [0 for _ in range(len(new_expr.probabilities) - 1)] + [compute_reward(y_pred, row['y'], new_expr)]
+                if len(row['Input Expressions']) > self.language.memory_size:
+                    row['Input Expressions'][t % self.language.memory_size] = new_expr
+                    row['y_preds'][t % self.language.memory_size] = y_pred
+                else:
+                    row['Input Expressions'].append(new_expr)
+                    row['y_preds'].append(y_pred)
+
+            if rewards:
+                scores_deque.append(np.sum(rewards))
+                
+                # Compute the gradient through REINFORCE algorithm
+                discounted_rewards = []
+                for t in range(len(rewards)):
+                    Gt = 0
+                    pw = 0
+                    for r_ in rewards[t:]:
+                        Gt += r_ * train_cfg.gamma ** pw
+                        pw += 1
+                    discounted_rewards.append(Gt)
+
+                discounted_rewards = torch.Tensor(discounted_rewards)
+                discounted_rewards = (discounted_rewards - discounted_rewards.mean()) / (discounted_rewards.std() + 1e-5)
+                log_probs = torch.log(torch.stack(saved_probs))
+                policy_gradient = (-discounted_rewards * log_probs).sum()
+
+                # Optimize
+                optimizer.zero_grad()
+                policy_gradient.backward()
+                optimizer.step()   # Mirar porque seguramente aqui hay un fallo
+
+                if episode % 10 == 0:
+                    print('Episode', episode, 'score', np.mean(scores_deque))
+                    super_scores.append(np.mean(scores_deque))
+        
+        print(super_scores)
+
+

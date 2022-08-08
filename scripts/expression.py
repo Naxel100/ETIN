@@ -1,5 +1,5 @@
+from cmath import isnan
 import numpy as np
-from sklearn.decomposition import randomized_svd
 from sympy import symbols
 from scipy.optimize import minimize
 from .model import create_input
@@ -10,7 +10,7 @@ class Expression():
     '''
     This class represents an Expression Tree. It is composed by a list of tokens/traversal (ex: [0, 2, 1]) and its one-hot-encoding representation in torch ([[1,0,0],[0,0,1],[0,1,0]]).
     '''
-    def __init__(self, language, traversal=None,
+    def __init__(self, language, traversal=None, record_probabilities=False,
                  model=None, prev_info=None, constants=None):
         # Save in self the variables needed
         self.language = language
@@ -20,7 +20,7 @@ class Expression():
             if model is not None:
                 assert prev_info is not None
                 input_info = create_input(prev_info, self.language)
-                traversal = self.generate_expression_from_model(model, input_info)
+                traversal = self.generate_expression_from_model(model, input_info, record_probabilities=record_probabilities)
             else:
                 traversal = self.generate_random_expression()
         self.traversal = traversal
@@ -150,15 +150,16 @@ class Expression():
                 prob_possibilities = [p / sum(prob_possibilities) for p in prob_possibilities]
                 choice = np.random.choice(possibilities, p=prob_possibilities)
 
-            to_append = [int(choice)]
+            choice = int(choice)
+            to_append = [choice]
             if (add_constants and self.language.use_constants and 
                 self.language.symbol_to_token[function_stack[-1]['function']].arity == 1
                 and function_stack[-1]['function'] not in ['^', '^2', '^3', '^4']):  # If same kind of operand
-                to_append = self.insert_constants(int(choice), hollows=self.language.max_len - will_be_nodes)
+                to_append = self.insert_constants(choice, hollows=self.language.max_len - will_be_nodes)
             will_be_nodes += len(to_append) - 1
             program += to_append  # Append to program
 
-            function_stack[-1]['distributive'].add(int(choice))  # Add to the not_allowed set
+            function_stack[-1]['distributive'].add(choice)  # Add to the not_allowed set
             arities_stack[-1] -= 1  # One node added to the parent, so we need to remove one from the arity
             while arities_stack[-1] == 0:  # If completed arity of node 
                 arities_stack.pop()        # Remove it from the arity stack
@@ -170,27 +171,37 @@ class Expression():
                 arities_stack[-1] -= 1
                 if child_symbol == function_stack[-1]['function']:
                     function_stack[-1]['distributive'].update(child_set)
-        
+
         return arities_stack, function_stack, program, will_be_nodes
 
 
-    def generate_expression_from_model(self, model, input_info, to_idx=True):
+    def generate_expression_from_model(self, model, input_info, record_probabilities=False, to_idx=True):
         First = True
         will_be_nodes = 1
-        arities_stack, function_stack, program = [], [], []
+        arities_stack, function_stack, program, probabilities = [], [], [], []
         # Get the index of where we are writting the program
 
-        model.eval()
+        if not record_probabilities:
+            model.eval()
         while First or arities_stack:   # While there are operands/operators to add
-            P = model(input_info[0].unsqueeze(0), input_info[1].unsqueeze(0))
-            P = P.squeeze(0).detach().numpy()[-1]
+            P_original = model(input_info[0].unsqueeze(0), input_info[1].unsqueeze(0)).squeeze(0)
+            P = P_original.detach().numpy()[-1]
+            if np.isnan(P).any():
+                print(input_info[0].unsqueeze(0), input_info[1].unsqueeze(0))
+                print(P)
+                raise Exception('Nan in probabilities')
             arities_stack, function_stack, program, will_be_nodes = self.add_node(arities_stack, function_stack, program, will_be_nodes, First, P)
             First = False
             token_idx = self.language.symbol_to_idx[program[-1]] if isinstance(program[-1], str) else program[-1]
             input_info = (input_info[0], torch.cat((input_info[1], torch.Tensor([token_idx]))))
+
+            if record_probabilities:
+                probabilities.append(P_original[-1, token_idx])
         
         if to_idx:
             program = [self.language.symbol_to_idx[x] if isinstance(x, str) else x for x in program]
+        
+        if record_probabilities: self.probabilities = probabilities
         return program
 
 

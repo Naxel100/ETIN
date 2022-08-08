@@ -41,7 +41,7 @@ class Dataset():
                 row['Input Expressions'].append(new_expression)
                 y_pred = new_expression.evaluate(row['X'])
                 if not (np.isnan(y_pred).any() or np.abs(y_pred).max() > 1e5 or np.abs(y_pred).min() < 1e-2):
-                    row['y_preds'].append(new_expression.evaluate(row['X']))
+                    row['y_preds'].append(y_pred)
                 else:
                     break
 
