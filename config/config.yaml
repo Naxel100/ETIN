@@ -44,3 +44,5 @@ Train:
     complexity_penalty: 0.05
     squishing_scale: 5
     lr: 0.0001
+    control_each: 100
+    save_each: 500

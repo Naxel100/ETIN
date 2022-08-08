@@ -112,15 +112,18 @@ class ETIN():
             # Compute NORMALIZED RMSE between the prediction and the actual y and add a penalty for complexity of the expression
             std_y_true = np.std(y_true)
             nrmse = np.sqrt(np.mean((y_pred - y_true)**2)) / std_y_true
-            complexity = len(expression.traversal) - 1  # ESTO CAMBIARLO POR UNA BUENA MEDIDA DE COMPLEJIDAD
+            complexity = 0  # ESTO CAMBIARLO POR UNA BUENA MEDIDA DE COMPLEJIDAD
             x =  nrmse + complexity * train_cfg.complexity_penalty
             return train_cfg.squishing_scale / (1 + x)
 
 
         data = Dataset(train_cfg.episodes, self.language)
         
-        scores_deque = deque(maxlen=10)
-        super_scores = []
+        scores_control = []
+        gradients_control = []
+        history_scores = []
+        history_gradients = []
+
         for episode, row in enumerate(data):
             saved_probs = []
             rewards = []
@@ -142,7 +145,7 @@ class ETIN():
                     row['y_preds'].append(y_pred)
 
             if rewards:
-                scores_deque.append(np.sum(rewards))
+                scores_control.append(np.sum(rewards))
                 
                 # Compute the gradient through REINFORCE algorithm
                 discounted_rewards = []
@@ -164,10 +167,22 @@ class ETIN():
                 policy_gradient.backward()
                 optimizer.step()   # Mirar porque seguramente aqui hay un fallo
 
-                if episode % 10 == 0:
-                    print('Episode', episode, 'score', np.mean(scores_deque))
-                    super_scores.append(np.mean(scores_deque))
-        
-        print(super_scores)
+                gradients_control.append(policy_gradient.detach().numpy())
+
+            if (episode + 1) % train_cfg.control_each == 0:
+                print('Episode', episode + 1, 'score', np.mean(scores_control), 'loss', np.mean(gradients_control))
+                history_scores.append(np.mean(scores_control))
+                history_gradients.append(np.mean(gradients_control))
+                scores_control = []
+                
+            if (episode + 1) % train_cfg.save_each == 0:
+                state = {
+                    'epoch': episode + 1,
+                    'state_dict': self.etin_model.state_dict(),
+                    'optimizer': optimizer.state_dict(),
+                    'scores': history_scores,
+                    'gradients': history_gradients,
+                }
+                torch.save(state, 'C:/Users/UX331U/Documents/TFG/Code/ETIN/outputs/rl/model_'+str(episode + 1)+'.pt')
 
 
