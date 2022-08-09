@@ -12,7 +12,6 @@ from pytorch_lightning.loggers import CSVLogger
 import numpy as np
 from pytorch_lightning.utilities.seed import seed_everything
 import time
-from collections import deque
 from .expression import Expression
 
 
@@ -106,6 +105,8 @@ class ETIN():
 
     def rl_training(self, train_cfg):
 
+        # torch.nn.utils.clip_grad_value_(self.etin_model.parameters(), clip_value=1)
+
         optimizer = torch.optim.Adam(self.etin_model.parameters(), lr=train_cfg.lr)
 
         def compute_reward(y_pred, y_true, expression):
@@ -158,7 +159,8 @@ class ETIN():
                     discounted_rewards.append(Gt)
 
                 discounted_rewards = torch.Tensor(discounted_rewards)
-                discounted_rewards = (discounted_rewards - discounted_rewards.mean()) / (discounted_rewards.std() + 1e-5)
+                # Ver si tiene sentido normalizar los discounted rewards o no
+                # discounted_rewards = (discounted_rewards - discounted_rewards.mean()) / (discounted_rewards.std() + 1e-5)
                 log_probs = torch.log(torch.stack(saved_probs))
                 policy_gradient = (-discounted_rewards * log_probs).sum()
 

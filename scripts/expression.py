@@ -186,10 +186,6 @@ class Expression():
         while First or arities_stack:   # While there are operands/operators to add
             P_original = model(input_info[0].unsqueeze(0), input_info[1].unsqueeze(0)).squeeze(0)
             P = P_original.detach().numpy()[-1]
-            if np.isnan(P).any():
-                print(input_info[0].unsqueeze(0), input_info[1].unsqueeze(0))
-                print(P)
-                raise Exception('Nan in probabilities')
             arities_stack, function_stack, program, will_be_nodes = self.add_node(arities_stack, function_stack, program, will_be_nodes, First, P)
             First = False
             token_idx = self.language.symbol_to_idx[program[-1]] if isinstance(program[-1], str) else program[-1]

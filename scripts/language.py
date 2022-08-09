@@ -120,8 +120,8 @@ class Language():
 
         if distributive:
             not_allowed += [int(x) for x in distributive]
-            if function and needed + self.symbol_to_token[function].arity > n_variables - len(distributive):
-                not_allowed += [function]
+        if function and needed + self.symbol_to_token[function].arity > n_variables - len(distributive):
+            not_allowed += [function]
 
         terminals = list(range(n_variables))
         if to_take == 'all':
