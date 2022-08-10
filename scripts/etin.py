@@ -32,7 +32,7 @@ class ETIN():
         self.etin_model.add_train_cfg(train_cfg.Supervised_Training)
 
         # Supervised training
-        # self.supervised_training(train_cfg.Supervised_Training)
+        self.supervised_training(train_cfg.Supervised_Training)
 
         # Unsupervised training
         self.rl_training(train_cfg.RL_Training)
@@ -124,6 +124,8 @@ class ETIN():
         gradients_control = []
         history_scores = []
         history_gradients = []
+        to_delete1 = []
+        to_delete2 = []
 
         for episode, row in enumerate(data):
             saved_probs = []
@@ -138,9 +140,10 @@ class ETIN():
                     break
                 saved_probs += new_expr.probabilities
                 rewards += [0 for _ in range(len(new_expr.probabilities) - 1)] + [compute_reward(y_pred, row['y'], new_expr)]
-                if len(row['Input Expressions']) > self.language.memory_size:
-                    row['Input Expressions'][t % self.language.memory_size] = new_expr
-                    row['y_preds'][t % self.language.memory_size] = y_pred
+                if len(row['Input Expressions']) >= self.language.memory_size:
+                    if self.language.memory_size > 0:
+                        row['Input Expressions'][t % self.language.memory_size] = new_expr
+                        row['y_preds'][t % self.language.memory_size] = y_pred
                 else:
                     row['Input Expressions'].append(new_expr)
                     row['y_preds'].append(y_pred)
@@ -155,14 +158,17 @@ class ETIN():
                     pw = 0
                     for r_ in rewards[t:]:
                         Gt += r_ * train_cfg.gamma ** pw
-                        pw += 1
+                        if r_ != 0:
+                            pw += 1
                     discounted_rewards.append(Gt)
 
+                to_delete1.append(np.mean(discounted_rewards))
                 discounted_rewards = torch.Tensor(discounted_rewards)
                 # Ver si tiene sentido normalizar los discounted rewards o no
                 # discounted_rewards = (discounted_rewards - discounted_rewards.mean()) / (discounted_rewards.std() + 1e-5)
                 log_probs = torch.log(torch.stack(saved_probs))
-                policy_gradient = (-discounted_rewards * log_probs).sum()
+                to_delete2 = torch.mean(log_probs.detach()).item()
+                policy_gradient = (-discounted_rewards * log_probs).mean()
 
                 # Optimize
                 optimizer.zero_grad()
@@ -172,10 +178,13 @@ class ETIN():
                 gradients_control.append(policy_gradient.detach().numpy())
 
             if (episode + 1) % train_cfg.control_each == 0:
-                print('Episode', episode + 1, 'score', np.mean(scores_control), 'loss', np.mean(gradients_control))
+                print('Episode', episode + 1, 'score', np.mean(scores_control), 'loss', np.mean(gradients_control), 'dr', np.mean(to_delete1), 'lp', np.mean(to_delete2))
                 history_scores.append(np.mean(scores_control))
                 history_gradients.append(np.mean(gradients_control))
                 scores_control = []
+                gradients_control = []
+                to_delete1 = []
+                to_delete2 = []
                 
             if (episode + 1) % train_cfg.save_each == 0:
                 state = {

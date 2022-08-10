@@ -14,7 +14,7 @@ Language:
   
 Model:
   dim_hidden: 512
-  dropout: 0.1
+  dropout: 0.0
   dim_feedforward: 512
   sinusoidal_embeddings: False
   bit16: True
@@ -27,22 +27,22 @@ Model:
 
 Train:
   Supervised_Training:
-    n_functions_train: [8192, 4096, 2048]
-    n_functions_test: [256, 256, 256]
+    n_functions_train: [2048, 1024]
+    n_functions_test: [256, 256]
     batch_size: 8
-    lr: 0.0003
+    lr: 0.003
     gpus: 1
-    epochs: 1
+    epochs: 5
     weight_length: 1.2
     precision: 16
     log_frequency: 16
 
   RL_Training:
-    episodes: 2048
-    max_expressions: 1
-    gamma: 0.999
+    episodes: 128
+    max_expressions: 2
+    gamma: 0.6
     complexity_penalty: 0.05
     squishing_scale: 5
-    lr: 0.01
+    lr: 0.0003
     control_each: 128
     save_each: 512
