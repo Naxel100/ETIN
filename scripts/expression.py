@@ -23,6 +23,8 @@ class Expression():
                 traversal = self.generate_expression_from_model(model, input_info, record_probabilities=record_probabilities)
             else:
                 traversal = self.generate_random_expression()
+        
+        traversal = [self.language.symbol_to_idx[x] if isinstance(x, str) else x for x in traversal]
         self.traversal = traversal
 
         if language.use_constants:
@@ -175,7 +177,7 @@ class Expression():
         return arities_stack, function_stack, program, will_be_nodes
 
 
-    def generate_expression_from_model(self, model, input_info, record_probabilities=False, to_idx=True):
+    def generate_expression_from_model(self, model, input_info, record_probabilities=False):
         First = True
         will_be_nodes = 1
         arities_stack, function_stack, program, probabilities = [], [], [], []
@@ -194,15 +196,12 @@ class Expression():
             if record_probabilities:
                 probabilities.append(P_original[-1, token_idx])
         
-        if to_idx:
-            program = [self.language.symbol_to_idx[x] if isinstance(x, str) else x for x in program]
-        
         if record_probabilities: self.probabilities = probabilities
         return program
 
 
 
-    def generate_random_expression(self, to_idx=True):
+    def generate_random_expression(self):
         First = True
         will_be_nodes = 1
         arities_stack, function_stack, program = [], [], []
@@ -211,8 +210,6 @@ class Expression():
             arities_stack, function_stack, program, will_be_nodes = self.add_node(arities_stack, function_stack, program, will_be_nodes, First, self.language.P, add_constants=True)
             First = False
 
-        if to_idx:
-            program = [self.language.symbol_to_idx[x] if isinstance(x, str) else x for x in program]
         return program
 
     

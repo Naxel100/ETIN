@@ -5,12 +5,12 @@ Language:
   prob_terminal: 0.5
   restrictions: ['no_inverse_parent', 'no_sqrt_in_log', 'no_double_division', 'no_sqrt_in_sqrt', 
                  'no_trigo_in_log', 'no_trigo_offspring', 'no_log_in_trigo']
-  max_variables: 5
+  max_variables: 3
   max_len: 15
   use_constants: True
   prob_add_const: 0.05
   prob_mult_const: 0.3
-  memory_size: 1
+  memory_size: 0
   
 Model:
   dim_hidden: 512
@@ -27,19 +27,19 @@ Model:
 
 Train:
   Supervised_Training:
-    n_functions_train: [2048, 1024]
-    n_functions_test: [256, 256]
+    n_functions_train: [16384]
+    n_functions_test: [256]
     batch_size: 8
-    lr: 0.003
+    lr: 0.00005
     gpus: 1
-    epochs: 5
+    epochs: 4
     weight_length: 1.2
     precision: 16
     log_frequency: 16
 
   RL_Training:
-    episodes: 128
-    max_expressions: 2
+    episodes: 1
+    max_expressions: 1
     gamma: 0.6
     complexity_penalty: 0.05
     squishing_scale: 5

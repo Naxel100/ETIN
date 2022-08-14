@@ -35,7 +35,7 @@ class ETIN():
         self.supervised_training(train_cfg.Supervised_Training)
 
         # Unsupervised training
-        self.rl_training(train_cfg.RL_Training)
+        # self.rl_training(train_cfg.RL_Training)
                 
     
     def preprocessing(self, data):

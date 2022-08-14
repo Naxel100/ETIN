@@ -54,9 +54,10 @@ class ETIN_model(pl.LightningModule):
         out.requires_grad = False
 
 
-    def forward(self, X, prev_exprs, expr=None, phase='eval'):  # Mirar por que cojones pasa tambien la target
+    def forward(self, X, prev_exprs, expr=None, phase='eval'):
+        # X -> B x N x X
         enc_src = self.set_encoder(X)
-        # Shape enc_src: B x F x N
+        # enc_src: B x F x E
 
         if phase == 'eval':
             input_decoder = prev_exprs.type(torch.int64)
@@ -64,8 +65,8 @@ class ETIN_model(pl.LightningModule):
             input_decoder = torch.cat([prev_exprs, expr], dim=1).type(torch.int64)[:, :-1]
         else:
             raise ValueError('Phase must be either eval or train.')
+        # input_decoder: B x T-1
         
-        # Shape trg_mask: B x L*M
         pos = self.pos_embedding(
             torch.arange(0, input_decoder.shape[1])
             .repeat(input_decoder.shape[0], 1)
@@ -102,7 +103,7 @@ class ETIN_model(pl.LightningModule):
         weights = (torch.ones(loss.shape) * self.train_cfg.weight_length).to(self.device)
         lengths = lengths.repeat_interleave(self.info_for_model['max_len']).to(self.device)
         weights = torch.pow(weights, lengths)
-        loss = torch.mul(loss, weights).mean()
+        loss = torch.mul(loss, weights).sum() / (trg != self.padding_idx).sum()
         return loss
 
 
