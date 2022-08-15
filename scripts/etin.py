@@ -77,6 +77,7 @@ class ETIN():
 
             # Create the trainer
             trainer = pl.Trainer(
+                strategy='ddp',
                 gpus=train_cfg.gpus,
                 max_epochs=train_cfg.epochs,
                 logger=logger,

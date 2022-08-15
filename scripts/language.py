@@ -20,32 +20,59 @@ def _protected_log(x1):
     """Closure of log for zero and negative arguments."""
     return np.where(np.abs(x1) > 1e-5, np.log(np.abs(x1)), np.zeros(1))
 
+def _protected_pow(x1, x2):
+    """Closure of power for negative arguments."""
+    return np.power(np.abs(x1), x2)
 
+def _np_cube(x):
+    return np.power(x, 3)
 
+def _np_fourth_power(x):
+    return np.power(x, 4)
 
+def _subtract(x1, x2):
+    return x1 - x2
+
+def _divide(x1, x2):
+    return x1 / x2
+
+def _square(x):
+    return x ** 2
+
+def _cube(x):
+    return x ** 3
+
+def _fourth_power(x):
+    return x ** 4
+
+def _inv(x):
+    return 1 / x
+
+def _neg(x):
+    return -x
 
 class Language():
     # Dicts so we can change fastly between token, idx and symbol -> idx 0 is reserved for constants and 1 to 10 for variables
     symbol_to_idx = None
     symbol_to_token = {
-        '+': Token(function=lambda a, b: a + b, arity=2, symbol='+', inv='-', sympy_function=sp.Add),
-        '-': Token(function=lambda a, b: a - b, arity=2, symbol='-', inv='+', sympy_function=lambda a, b: a - b),
-        '*': Token(function=lambda a, b: a * b, arity=2, symbol='*', inv='/', sympy_function=sp.Mul),
-        '/': Token(function=lambda a, b: np.divide(a, b), arity=2, symbol='/', inv='*', sympy_function=lambda a, b: a / b),
-        '^2': Token(function=lambda a: np.power(a, 2), arity=1, symbol='^2', inv='sqrt', sympy_function=lambda a: a**2),
-        '^3': Token(function=lambda a: np.power(a, 3), arity=1, symbol='^3', sympy_function=lambda a: a**3),
-        '^4': Token(function=lambda a: np.power(a, 4), arity=1, symbol='^4', sympy_function=lambda a: a**4),
-        'sin': Token(function=lambda a: np.sin(a), arity=1, symbol='sin', sympy_function=sp.sin),
-        'cos': Token(function=lambda a: np.cos(a), arity=1, symbol='cos', sympy_function=sp.cos),
-        'exp': Token(function=lambda a: np.exp(a), arity=1, symbol='exp', inv='log', sympy_function=sp.exp),
-        'log': Token(function=lambda a: _protected_log(a), arity=1, symbol='log', inv='exp', sympy_function=sp.log),
-        'sqrt': Token(function=lambda a: _protected_sqrt(a), arity=1, symbol='sqrt', inv='^2', sympy_function=sp.sqrt),
-        'abs': Token(function=lambda a: np.abs(a), arity=1, symbol='abs', sympy_function=sp.Abs),
-        'max': Token(function=lambda a, b: np.maximum(a, b), arity=2, symbol='max', sympy_function=sp.Max),
-        'min': Token(function=lambda a, b: np.minimum(a, b), arity=2, symbol='min', sympy_function=sp.Min),
-        'inv': Token(function=lambda a: np.reciprocal(a), arity=1, symbol='inv', sympy_function=lambda a: 1 / a),
-        'neg': Token(function=lambda a: -a, arity=1, symbol='neg', sympy_function=lambda a: -a),
-        '^': Token(function=lambda a, b: np.power(np.abs(a), b), arity=2, symbol='^', sympy_function=sp.Pow)
+        '+': Token(function=np.add, arity=2, symbol='+', inv='-', sympy_function=sp.Add),
+        '-': Token(function=np.subtract, arity=2, symbol='-', inv='+', sympy_function=_subtract),
+        '*': Token(function=np.multiply, arity=2, symbol='*', inv='/', sympy_function=sp.Mul),
+        '/': Token(function=np.divide, arity=2, symbol='/', inv='*', sympy_function=_divide),
+        '^2': Token(function=np.square, arity=1, symbol='^2', inv='sqrt', sympy_function=_square),
+        '^3': Token(function=_np_cube, arity=1, symbol='^3', sympy_function=_cube),
+        '^4': Token(function=_np_fourth_power, arity=1, symbol='^4', sympy_function=_fourth_power),
+        'sin': Token(function=np.sin, arity=1, symbol='sin', sympy_function=sp.sin),
+        'cos': Token(function=np.cos, arity=1, symbol='cos', sympy_function=sp.cos),
+        'exp': Token(function=np.exp, arity=1, symbol='exp', inv='log', sympy_function=sp.exp),
+        'log': Token(function=_protected_log, arity=1, symbol='log', inv='exp', sympy_function=sp.log),
+        'sqrt': Token(function=_protected_sqrt, arity=1, symbol='sqrt', inv='^2', sympy_function=sp.sqrt),
+        'abs': Token(function=np.abs, arity=1, symbol='abs', sympy_function=sp.Abs),
+        'max': Token(function=np.maximum, arity=2, symbol='max', sympy_function=sp.Max),
+        'min': Token(function=np.minimum, arity=2, symbol='min', sympy_function=sp.Min),
+        'inv': Token(function=np.reciprocal, arity=1, symbol='inv', sympy_function=_inv),
+        'neg': Token(function=_neg, arity=1, symbol='neg', sympy_function=_neg),
+        '^': Token(function=_protected_pow, arity=2, symbol='^', sympy_function=sp.Pow)
     }
 
     def __init__(self, cfg):

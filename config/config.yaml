@@ -11,7 +11,8 @@ Language:
   prob_add_const: 0.05
   prob_mult_const: 0.3
   memory_size: 0
-  
+
+# Properties of the model
 Model:
   dim_hidden: 512
   dropout: 0.0
@@ -25,13 +26,14 @@ Model:
   layers_decoder: 5
   num_features: 10
 
+# Train configuration
 Train:
   Supervised_Training:
     n_functions_train: [16384]
     n_functions_test: [256]
-    batch_size: 8
+    batch_size: 32
     lr: 0.00005
-    gpus: 1
+    gpus: 2
     epochs: 4
     weight_length: 1.2
     precision: 16
