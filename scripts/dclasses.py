@@ -1,3 +1,4 @@
+import torch
 import numpy as np
 from .expression import Expression
 from tqdm.contrib.concurrent import thread_map
@@ -28,7 +29,10 @@ class Dataset():
             self.dataset.append(row)
             count += 1
 
-        thread_map(self._add_prev_exprs, self.dataset)  # Input Expressions obtained parallelly
+        if self.max_passes > 0:
+            thread_map(self._add_prev_exprs, self.dataset, max_workers=1)
+        else:
+            thread_map(self._add_prev_exprs, self.dataset)  # Input Expressions obtained parallelly
 
     
     def _add_prev_exprs(self, row):
@@ -37,7 +41,8 @@ class Dataset():
         if self.max_passes:
             iterations = np.random.randint(0, self.max_passes + 1)
             for _ in range(iterations):
-                new_expression = Expression(self.language, model=self.model, prev_info=row)
+                with torch.no_grad():
+                    new_expression = Expression(self.language, model=self.model, prev_info=row)
                 row['Input Expressions'].append(new_expression)
                 y_pred = new_expression.evaluate(row['X'])
                 if not (np.isnan(y_pred).any() or np.abs(y_pred).max() > 1e5 or np.abs(y_pred).min() < 1e-2):

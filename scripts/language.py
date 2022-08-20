@@ -172,6 +172,7 @@ def get_restrictions(restrictions):
         
         elif restriction == 'no_double_division':
             result['/'] = result.get('/', []) + ['/', 'inv']
+            result['inv'] = result.get('inv', []) + ['/', 'inv']
         
         elif restriction == 'no_sqrt_in_sqrt':
             result['sqrt'] = result.get('sqrt', []) + ['sqrt']

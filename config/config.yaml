@@ -1,6 +1,6 @@
 # Properties of the language to be used
 Language:
-  operators: [['+', 10], ['-', 6], ['*', 6], ['/', 6], ['^2', 3], ['^3', 1],
+  operators: [['+', 10], ['-', 6], ['*', 6], ['/', 3], ['^2', 3], ['^3', 1], ['inv', 3],
               ['^4', 1], ['log', 2], ['exp', 1], ['sqrt', 1], ['sin', 2], ['cos', 2]]
   prob_terminal: 0.5
   restrictions: ['no_inverse_parent', 'no_sqrt_in_log', 'no_double_division', 'no_sqrt_in_sqrt', 
@@ -10,7 +10,7 @@ Language:
   use_constants: True
   prob_add_const: 0.05
   prob_mult_const: 0.3
-  memory_size: 0
+  memory_size: 2
 
 # Properties of the model
 Model:
@@ -29,12 +29,12 @@ Model:
 # Train configuration
 Train:
   Supervised_Training:
-    n_functions_train: [16384]
-    n_functions_test: [256]
+    n_functions_train: [80000, 40000, 20000]
+    n_functions_test: [2500, 2500, 2500]
     batch_size: 32
-    lr: 0.00005
-    gpus: 2
-    epochs: 4
+    lr: 0.00003
+    gpus: [0, 1]
+    epochs: [20, 10, 5]
     weight_length: 1.2
     precision: 16
     log_frequency: 16

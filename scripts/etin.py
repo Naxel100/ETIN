@@ -1,3 +1,4 @@
+from copy import deepcopy
 from .language import Language
 from .dclasses import Dataset
 from torch.utils.data import DataLoader
@@ -13,6 +14,10 @@ import numpy as np
 from pytorch_lightning.utilities.seed import seed_everything
 import time
 from .expression import Expression
+from pytorch_lightning.strategies.ddp import DDPStrategy
+from multiprocessing import Manager
+from pytorch_lightning.callbacks import ModelCheckpoint
+from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 
 
 class ETIN():
@@ -25,7 +30,8 @@ class ETIN():
         # Create Language of the the Expressions with the given restrictions
         self.language = Language(language_cfg)
         # Create an Expression Tree Improver Network (ETIN)
-        self.etin_model = ETIN_model(model_cfg, self.language.info_for_model)                           
+        self.etin_model = ETIN_model(model_cfg, self.language.info_for_model)
+                               
 
 
     def train(self, train_cfg):
@@ -47,7 +53,7 @@ class ETIN():
             input_expressions.append(b)
             target_expressions.append(c)
 
-        for_loss = torch.Tensor([(len(expr) - 1) % (self.language.max_len + 1) for expr in input_expressions])
+        for_loss = torch.Tensor([(len(expr) - 1) // (self.language.max_len + 1) for expr in input_expressions])
 
         input_dataset = pad_sequence(input_dataset, padding_value=0).permute(1, 0, 2)
         input_expressions = pad_sequence(input_expressions, padding_value=self.language.padding_idx).permute(1, 0)
@@ -75,15 +81,25 @@ class ETIN():
             # Create a logger to save the partial results
             logger = CSVLogger("logs", name="mega_epoch"+str(mega_epoch)) 
 
+            checkpoint_callback = ModelCheckpoint(
+                monitor="val_loss",
+                dirpath="Weights/",                 
+                filename="_log_"+"-{epoch:02d}-{val_loss:.2f}",
+                mode="min",
+            )
+
+            early_stop_callback = EarlyStopping(monitor="val_loss", mode="min")
+
             # Create the trainer
             trainer = pl.Trainer(
-                strategy='ddp',
+                strategy=DDPStrategy(find_unused_parameters=False),
                 gpus=train_cfg.gpus,
-                max_epochs=train_cfg.epochs,
+                max_epochs=train_cfg.epochs[mega_epoch],
                 logger=logger,
                 deterministic=True,
                 precision=train_cfg.precision,
                 log_every_n_steps=train_cfg.log_frequency,
+                callbacks=[checkpoint_callback, early_stop_callback],
             )
 
             # Train Data
@@ -95,6 +111,11 @@ class ETIN():
 
             # Fit the model with the train and test data
             trainer.fit(self.etin_model, train_dataloader, test_dataloader)
+
+            # Recover the best model for the next mega epoch
+            ckpt_path = checkpoint_callback.best_model_path
+            self.etin_model = self.etin_model.load_from_checkpoint(ckpt_path, cfg=self.model_cfg, info_for_model=self.language.info_for_model)
+            self.etin_model.add_train_cfg(train_cfg)
 
             print('Mega Epoch', mega_epoch, 'took', time.time() - start_time, 'seconds.\n')
             print('------------------------------------------------------------------------------------------------------------\n')

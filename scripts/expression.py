@@ -120,8 +120,6 @@ class Expression():
         if (choice in self.language.function_set_symbols and 
            will_be_nodes + self.language.symbol_to_token[choice].arity <= self.language.max_len):
 
-            if function_stack and self.language.symbol_to_token[choice].inv == function_stack[-1]['function']:
-                raise Exception('Trying to add a function that is the inverse of the parent function')
             to_append = [choice]
             will_be_nodes += self.language.symbol_to_token[choice].arity
             if add_constants and self.language.use_constants and self.language.symbol_to_token[choice].arity == 1: 
@@ -181,21 +179,34 @@ class Expression():
         First = True
         will_be_nodes = 1
         arities_stack, function_stack, program, probabilities = [], [], [], []
-        # Get the index of where we are writting the program
 
-        if not record_probabilities:
+        # Send the model to device if device is not given
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        model.to(device)
+
+        # Set to train or eval dpending if we want to record probabilities (for rl part) or not
+        if record_probabilities:
+            model.train()
+        else:
             model.eval()
+
+        Xy = input_info[0].unsqueeze(0).to(device)
+        prev_exprs = input_info[1].unsqueeze(0).to(device)
+
         while First or arities_stack:   # While there are operands/operators to add
-            P_original = model(input_info[0].unsqueeze(0), input_info[1].unsqueeze(0)).squeeze(0)
-            P = P_original.detach().numpy()[-1]
+            P_original = model(Xy, prev_exprs).squeeze(0)
+            P = P_original.detach().cpu().numpy()[-1]
             arities_stack, function_stack, program, will_be_nodes = self.add_node(arities_stack, function_stack, program, will_be_nodes, First, P)
             First = False
             token_idx = self.language.symbol_to_idx[program[-1]] if isinstance(program[-1], str) else program[-1]
-            input_info = (input_info[0], torch.cat((input_info[1], torch.Tensor([token_idx]))))
+            to_append = torch.Tensor([token_idx]).unsqueeze(0).to(device)
+            prev_exprs = torch.cat((prev_exprs, to_append), dim=1)
 
             if record_probabilities:
                 probabilities.append(P_original[-1, token_idx])
         
+        del Xy, prev_exprs
+
         if record_probabilities: self.probabilities = probabilities
         return program
 

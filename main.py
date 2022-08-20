@@ -18,4 +18,5 @@ def main(cfg):
     
     print('OVERALL EXECUTION TIME:', time.time() - start)
 
-main()
+if __name__ == '__main__':
+    main()
