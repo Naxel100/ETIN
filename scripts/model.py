@@ -35,6 +35,14 @@ class ETIN_model(pl.LightningModule):
         self.dropout = nn.Dropout(cfg.dropout)
         self.softmax = nn.Softmax(dim=-1)
         self.info_for_model = info_for_model
+
+
+    def put_close_to_zero(self, mega_epoch):
+        vars = self.info_for_model['max_variables']
+        total = vars + self.info_for_model['memory_size'] + 1
+        self.set_encoder.selfatt1.mab0.fc_k.weight.data = torch.cat((self.set_encoder.selfatt1.mab0.fc_k.weight.data[:, :16*(vars + mega_epoch)], torch.normal(0, 0.005, size=(self.cfg.dim_hidden, 16*(total - vars - mega_epoch)))), dim=1)
+        self.set_encoder.selfatt1.mab0.fc_v.weight.data = torch.cat((self.set_encoder.selfatt1.mab0.fc_v.weight.data[:, :16*(vars + mega_epoch)], torch.normal(0, 0.005, size=(self.cfg.dim_hidden, 16*(total - vars - mega_epoch)))), dim=1)
+        self.set_encoder.selfatt1.mab1.fc_q.weight.data = torch.cat((self.set_encoder.selfatt1.mab1.fc_q.weight.data[:, :16*(vars + mega_epoch)], torch.normal(0, 0.005, size=(self.cfg.dim_hidden, 16*(total - vars - mega_epoch)))), dim=1)
     
 
     def add_train_cfg(self, train_cfg):

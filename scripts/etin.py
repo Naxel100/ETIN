@@ -92,7 +92,7 @@ class ETIN():
 
             # Create the trainer
             trainer = pl.Trainer(
-                strategy=DDPStrategy(find_unused_parameters=False),
+                # strategy=DDPStrategy(find_unused_parameters=False),
                 gpus=train_cfg.gpus,
                 max_epochs=train_cfg.epochs[mega_epoch],
                 logger=logger,
@@ -116,6 +116,7 @@ class ETIN():
             ckpt_path = checkpoint_callback.best_model_path
             self.etin_model = self.etin_model.load_from_checkpoint(ckpt_path, cfg=self.model_cfg, info_for_model=self.language.info_for_model)
             self.etin_model.add_train_cfg(train_cfg)
+            self.etin_model.put_close_to_zero(mega_epoch + 1)
 
             print('Mega Epoch', mega_epoch, 'took', time.time() - start_time, 'seconds.\n')
             print('------------------------------------------------------------------------------------------------------------\n')
