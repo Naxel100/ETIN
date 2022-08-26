@@ -46,3 +46,4 @@ Train:
     lr: 0
     control_each: 128
     save_each: 512
+    model_path: ''

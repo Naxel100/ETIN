@@ -22,7 +22,7 @@ from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 
 
 class ETIN():
-    def __init__(self, language_cfg, model_cfg, seed=69, from_path=None):
+    def __init__(self, language_cfg, model_cfg, seed=69):
         
         # Seed everything to obtain reproducible results
         self.seed = seed
@@ -32,11 +32,11 @@ class ETIN():
         # Create Language of the the Expressions with the given restrictions
         self.language = Language(language_cfg)
         # Create an Expression Tree Improver Network (ETIN)
-        self.from_ckpt = from_path is not None
+        self.from_ckpt = model_cfg.from_path is not None
         if not self.from_ckpt:
             self.etin_model = ETIN_model(model_cfg, self.language.info_for_model)
         else:
-            self.etin_model = ETIN_model.load_from_checkpoint(from_path, cfg=self.model_cfg, info_for_model=self.language.info_for_model)
+            self.etin_model = ETIN_model.load_from_checkpoint(model_cfg.from_path, cfg=self.model_cfg, info_for_model=self.language.info_for_model)
                                
 
 

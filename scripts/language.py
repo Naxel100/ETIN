@@ -193,5 +193,3 @@ def get_restrictions(restrictions):
             raise Exception('Unknown restriction')
         
     return result
-
-        
