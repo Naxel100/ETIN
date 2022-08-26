@@ -29,11 +29,9 @@ class Expression():
 
         if language.use_constants:
             if constants is None:
+                self.constants = np.abs(np.random.normal(0, 3, size=(self.traversal.count(language.const_index),)))
                 if prev_info is not None:
-                    constants = self.optimize_constants(prev_info['X'], prev_info['y'])
-                else:
-                    constants = np.abs(np.random.normal(0, 3, size=(self.traversal.count(language.const_index),)))
-            self.constants = constants
+                    self.constants = self.optimize_constants(prev_info['X'], prev_info['y'])
 
     def to_sympy(self):
         '''
@@ -175,14 +173,10 @@ class Expression():
         return arities_stack, function_stack, program, will_be_nodes
 
 
-    def generate_expression_from_model(self, model, input_info, record_probabilities=False):
+    def generate_expression_from_model(self, model, input_info, record_probabilities=False, device='cuda'):
         First = True
         will_be_nodes = 1
         arities_stack, function_stack, program, probabilities = [], [], [], []
-
-        # Send the model to device if device is not given
-        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        model.to(device)
 
         # Set to train or eval dpending if we want to record probabilities (for rl part) or not
         if record_probabilities:
@@ -204,10 +198,10 @@ class Expression():
 
             if record_probabilities:
                 probabilities.append(P_original[-1, token_idx])
+                self.probabilities = probabilities
         
         del Xy, prev_exprs
 
-        if record_probabilities: self.probabilities = probabilities
         return program
 
 

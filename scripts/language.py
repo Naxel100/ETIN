@@ -110,7 +110,6 @@ class Language():
         self.prob_add_const = cfg.prob_add_const
         self.prob_mult_const = cfg.prob_mult_const
         self.max_len = cfg.max_len
-        self.memory_size = cfg.memory_size
 
         # Extra indices
         self.ini_idx = self.size
@@ -122,8 +121,7 @@ class Language():
             'max_len': self.max_len,
             'max_variables': self.max_variables, 
             'padding_idx': self.padding_idx,
-            'ini_idx': self.ini_idx,
-            'memory_size': self.memory_size
+            'ini_idx': self.ini_idx
         }
 
 
