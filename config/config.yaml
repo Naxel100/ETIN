@@ -14,7 +14,6 @@ Language:
 
 # Properties of the model
 Model:
-  from_path: '/home/gridsan/amorenas/ETIN/outputs/2022-08-23/23-08-45/Weights/log_epoch=16_val_loss=0.75.ckpt'
   dim_hidden: 512
   dropout: 0.0
   dim_feedforward: 512
@@ -30,9 +29,9 @@ Model:
 # Train configuration
 Train:
   Supervised_Training:
-    n_functions_train: 10000000
-    n_functions_test: 100000
-    batch_size: 8
+    n_functions_train: [80000, 40000, 20000]
+    n_functions_test: [2500, 2500, 2500]
+    batch_size: 32
     lr: 0.00003
     gpus: [0]
     epochs: 32
@@ -40,11 +39,11 @@ Train:
     log_frequency: 16
 
   RL_Training:
-    episodes: 100000
+    episodes: 1
+    max_expressions: 1
+    gamma: 0.6
     complexity_penalty: 0.05
     squishing_scale: 5
-    lr: 0.00000005
-    discover_probability: 0.5
-    control_each: 500
-    save_each: 5000
-    model_path: '/home/gridsan/amorenas/ETIN3/outputs/rl5/'
+    lr: 0.0003
+    control_each: 128
+    save_each: 512

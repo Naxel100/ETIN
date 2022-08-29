@@ -90,8 +90,11 @@ class ETIN_model(pl.LightningModule):
         X, expr = batch[0], batch[1]
         output = self.forward(X, expr=expr, phase='train')
         loss = self.compute_loss(output, expr)
+<<<<<<< HEAD
         if torch.isnan(loss).sum() > 0:
             loss = torch.nan_to_num(loss)
+=======
+>>>>>>> bb9a0f3abc1570ad808c43e44cd0d49b7d0ecaea
         self.log("train_loss", loss, on_epoch=True)
         return loss
 
@@ -100,8 +103,11 @@ class ETIN_model(pl.LightningModule):
         output = output.contiguous().view(-1, output.shape[-1])
         trg = trg.contiguous().view(-1).type(torch.long)
         loss = self.criterion(output, trg)
+<<<<<<< HEAD
         if torch.isnan(loss).any():
             loss = torch.nan_to_num(loss)
+=======
+>>>>>>> bb9a0f3abc1570ad808c43e44cd0d49b7d0ecaea
         return loss
 
 
@@ -134,4 +140,8 @@ def create_input(row, language):
     expr = row['Target Expression'].traversal
     expr = padding_expr(torch.Tensor(expr))
 
+<<<<<<< HEAD
     return obs_data, expr  # Alomejor cambiarlo para que sea una namedtuple
+=======
+    return obs_data, expr  # Alomejor cambiarlo para que sea una namedtuple
+>>>>>>> bb9a0f3abc1570ad808c43e44cd0d49b7d0ecaea

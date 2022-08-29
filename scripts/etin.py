@@ -91,8 +91,11 @@ class ETIN():
             precision=train_cfg.precision,
             log_every_n_steps=train_cfg.log_frequency,
             callbacks=[checkpoint_callback, early_stop_callback],
+<<<<<<< HEAD
             detect_anomaly=True,
             resume_from_checkpoint=self.model_cfg.from_path,
+=======
+>>>>>>> bb9a0f3abc1570ad808c43e44cd0d49b7d0ecaea
         )
 
         train_data = Dataset(train_cfg.n_functions_train, self.language)
@@ -134,8 +137,12 @@ class ETIN():
             saved_probs, rewards = [], []
 
             # Generate an episode
+<<<<<<< HEAD
             new_expr = Expression(self.language, model=self.etin_model, prev_info=row, 
                                   record_probabilities=True, discover_probability=train_cfg.discover_probability)
+=======
+            new_expr = Expression(self.language, model=self.etin_model, prev_info=row, record_probabilities=True)
+>>>>>>> bb9a0f3abc1570ad808c43e44cd0d49b7d0ecaea
             y_pred = new_expr.evaluate(row['X'])
             if (np.isnan(y_pred).any() or np.abs(y_pred).max() > 1e5 or np.abs(y_pred).min() < 1e-2):
                 continue
@@ -194,4 +201,8 @@ class ResultsContainer:
         self.loss = []
     
     def reset(self):
+<<<<<<< HEAD
         self.__init__
+=======
+        self.__init__
+>>>>>>> bb9a0f3abc1570ad808c43e44cd0d49b7d0ecaea

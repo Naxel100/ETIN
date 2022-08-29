@@ -181,7 +181,11 @@ class Expression():
         return arities_stack, function_stack, program, will_be_nodes
 
 
+<<<<<<< HEAD
     def generate_expression_from_model(self, model, input_info, record_probabilities=False, device='cuda', discover_probability=1.):
+=======
+    def generate_expression_from_model(self, model, input_info, record_probabilities=False, device='cuda'):
+>>>>>>> bb9a0f3abc1570ad808c43e44cd0d49b7d0ecaea
         First = True
         will_be_nodes = 1
         arities_stack, function_stack, program, probabilities = [], [], [], []
