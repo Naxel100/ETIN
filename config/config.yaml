@@ -40,12 +40,13 @@ Train:
     log_frequency: 16
 
   RL_Training:
-    episodes: 100000
+    episodes: 50000
     max_expressions: 1
     complexity_penalty: 0.05
     squishing_scale: 5
     lr: 0.00000005
-    discover_probability: 0.95
-    decay: 0.99998
-    control_each: 128
-    save_each: 512
+    discover_probability: 1.
+    decay: 0.9998
+    control_each: 500
+    save_each: 100000
+    model_path: '/home/gridsan/amorenas/ETIN3/outputs/rl5/'

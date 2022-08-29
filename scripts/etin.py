@@ -181,7 +181,7 @@ class ETIN():
                     'loss': history.loss,
                     'log_probs': history.log_probs
                 }
-                torch.save(state, train_cfg.model_path+'/model_'+str(episode + 1)+'.pt')
+                torch.save(state, train_cfg.model_path+'model_'+str(episode + 1)+'.pt')
 
             discover_probability = initial_discover_probability * train_cfg.decay ** episode
 
