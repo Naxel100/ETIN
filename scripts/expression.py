@@ -11,7 +11,7 @@ class Expression():
     This class represents an Expression Tree. It is composed by a list of tokens/traversal (ex: [0, 2, 1]) and its one-hot-encoding representation in torch ([[1,0,0],[0,0,1],[0,1,0]]).
     '''
     def __init__(self, language, traversal=None, record_probabilities=False,
-                 model=None, prev_info=None, constants=None):
+                 model=None, prev_info=None, constants=None, discover_probability=1.):
         # Save in self the variables needed
         self.language = language
         self.n_variables = language.max_variables
@@ -20,7 +20,9 @@ class Expression():
             if model is not None:
                 assert prev_info is not None
                 input_info = create_input(prev_info, self.language)
-                traversal = self.generate_expression_from_model(model, input_info, record_probabilities=record_probabilities)
+                traversal = self.generate_expression_from_model(model, input_info, 
+                                                                record_probabilities=record_probabilities,
+                                                                discover_probability=discover_probability)
             else:
                 traversal = self.generate_random_expression()
         
@@ -29,11 +31,9 @@ class Expression():
 
         if language.use_constants:
             if constants is None:
+                self.constants = np.abs(np.random.normal(0, 3, size=(self.traversal.count(language.const_index),)))
                 if prev_info is not None:
-                    constants = self.optimize_constants(prev_info['X'], prev_info['y'])
-                else:
-                    constants = np.abs(np.random.normal(0, 3, size=(self.traversal.count(language.const_index),)))
-            self.constants = constants
+                    self.constants = self.optimize_constants(prev_info['X'], prev_info['y'])
 
     def to_sympy(self):
         '''
@@ -102,7 +102,7 @@ class Expression():
         return to_append
 
 
-    def add_node(self, arities_stack, function_stack, program, will_be_nodes, First, P, add_constants=False):
+    def add_node(self, arities_stack, function_stack, program, will_be_nodes, First, P, add_constants=False, discover_probability=1.):
         if First:   # If it is the root
             possibilities = self.language.get_possibilities(n_variables=self.n_variables, to_take='operator') # Take a function to avoid degenerated expressions
         else:
@@ -114,7 +114,10 @@ class Expression():
         prob_possibilities = list(map(P.__getitem__, indices))
         prob_possibilities = [p / sum(prob_possibilities) for p in prob_possibilities]
         # Choose a token idx
-        choice = np.random.choice(possibilities, p=prob_possibilities)
+        if np.random.random() < discover_probability:
+            choice = np.random.choice(possibilities, p=prob_possibilities)
+        else:
+            choice = possibilities[np.argmax(prob_possibilities)]
 
         # Determine if we are adding a function or terminal -> Add Function if we got a function and there will be enough nodes to add it and add its children
         if (choice in self.language.function_set_symbols and 
@@ -148,7 +151,10 @@ class Expression():
                 possibilities = sorted(self.language.get_possibilities(**function_stack[-1], to_take='terminal', n_variables=self.n_variables))
                 prob_possibilities = list(map(P.__getitem__, possibilities))
                 prob_possibilities = [p / sum(prob_possibilities) for p in prob_possibilities]
-                choice = np.random.choice(possibilities, p=prob_possibilities)
+                if np.random.random() < discover_probability:
+                    choice = np.random.choice(possibilities, p=prob_possibilities)
+                else:
+                    choice = possibilities[np.argmax(prob_possibilities)]
 
             choice = int(choice)
             to_append = [choice]
@@ -175,14 +181,10 @@ class Expression():
         return arities_stack, function_stack, program, will_be_nodes
 
 
-    def generate_expression_from_model(self, model, input_info, record_probabilities=False):
+    def generate_expression_from_model(self, model, input_info, record_probabilities=False, device='cuda', discover_probability=1.):
         First = True
         will_be_nodes = 1
         arities_stack, function_stack, program, probabilities = [], [], [], []
-
-        # Send the model to device if device is not given
-        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        model.to(device)
 
         # Set to train or eval dpending if we want to record probabilities (for rl part) or not
         if record_probabilities:
@@ -196,7 +198,7 @@ class Expression():
         while First or arities_stack:   # While there are operands/operators to add
             P_original = model(Xy, prev_exprs).squeeze(0)
             P = P_original.detach().cpu().numpy()[-1]
-            arities_stack, function_stack, program, will_be_nodes = self.add_node(arities_stack, function_stack, program, will_be_nodes, First, P)
+            arities_stack, function_stack, program, will_be_nodes = self.add_node(arities_stack, function_stack, program, will_be_nodes, First, P, discover_probability=discover_probability)
             First = False
             token_idx = self.language.symbol_to_idx[program[-1]] if isinstance(program[-1], str) else program[-1]
             to_append = torch.Tensor([token_idx]).unsqueeze(0).to(device)
@@ -204,10 +206,10 @@ class Expression():
 
             if record_probabilities:
                 probabilities.append(P_original[-1, token_idx])
+                self.probabilities = probabilities
         
         del Xy, prev_exprs
 
-        if record_probabilities: self.probabilities = probabilities
         return program
 
 

@@ -44,10 +44,10 @@ class ETIN():
         self.etin_model.add_train_cfg(train_cfg.Supervised_Training)
 
         # Supervised training
-        # self.supervised_training(train_cfg.Supervised_Training)
+        self.supervised_training(train_cfg.Supervised_Training)
 
         # Unsupervised training
-        self.rl_training(train_cfg.RL_Training)
+        # self.rl_training(train_cfg.RL_Training)
                 
     
     def preprocessing(self, data):
@@ -134,8 +134,7 @@ class ETIN():
             saved_probs, rewards = [], []
 
             # Generate an episode
-            new_expr = Expression(self.language, model=self.etin_model, prev_info=row, 
-                                  record_probabilities=True, discover_probability=train_cfg.discover_probability)
+            new_expr = Expression(self.language, model=self.etin_model, prev_info=row, record_probabilities=True)
             y_pred = new_expr.evaluate(row['X'])
             if (np.isnan(y_pred).any() or np.abs(y_pred).max() > 1e5 or np.abs(y_pred).min() < 1e-2):
                 continue
