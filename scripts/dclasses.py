@@ -16,7 +16,7 @@ class Dataset():
         while count != n_functions:
             row = {}  # To save the result
             row['n_obs'] = np.random.randint(10, 256)  # Number of observations
-            row['Target Expression'] = Expression(language, traversal=['+', 1, 2])  # Target Expression
+            row['Target Expression'] = Expression(language)  # Target Expression
             row['X_lower_bound'] = np.random.uniform(0.05, 6, size=language.max_variables)  # Lower bound of the variables
             row['X_upper_bound'] = [np.random.uniform(row['X_lower_bound'][i] + 1, 10) for i in range(language.max_variables)] # Upper bound of the variables
             row['X'] = np.concatenate([np.random.uniform(row['X_lower_bound'][i], row['X_upper_bound'][i], (row['n_obs'], 1)) for i in range(language.max_variables)], axis=1)

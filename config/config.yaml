@@ -14,7 +14,7 @@ Language:
 
 # Properties of the model
 Model:
-  from_path: '/home/gridsan/amorenas/ETIN/outputs/2022-08-22/14-42-22/Weights/log_epoch=20_val_loss=1.07.ckpt'
+  from_path: '/home/gridsan/amorenas/ETIN/outputs/2022-08-23/23-08-45/Weights/log_epoch=20_val_loss=1.07.ckpt'
   dim_hidden: 512
   dropout: 0.0
   dim_feedforward: 512
@@ -42,7 +42,7 @@ Train:
   RL_Training:
     episodes: 5000
     num_expressions: 1
-    complexity_penalty: 0.1
+    complexity_penalty: 0.
     squishing_scale: 5
     lr: 0.00000005
     discover_probability: 1.
