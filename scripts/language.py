@@ -83,6 +83,7 @@ class Language():
         # Assert that all the function symbols are valid
         self.function_set_symbols = list(zip(*cfg.operators))[0]  # Get the symbols from the operators
         weights = list(zip(*cfg.operators))[1]  # Get the unnormalized probabilities from the operators
+        self.complexity = {symbol: 1/weight for symbol, weight in cfg.operators}
         self.P = np.concatenate((np.array([cfg.prob_terminal/cfg.max_variables for i in range(cfg.max_variables)]), 
                  np.array(weights) * (1 - cfg.prob_terminal) / sum(np.array(weights))))  # Probabilities of each element
         self.const_index = len(self.P) if cfg.use_constants else -1 # Index of the constant

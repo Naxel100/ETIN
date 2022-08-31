@@ -62,8 +62,10 @@ class ETIN_model(pl.LightningModule):
         # enc_src: B x F x E
 
         input_decoder = (self.ini_idx * torch.ones(X.shape[0]).unsqueeze(1).type(torch.int64)).to(self.device)
+        if expr is not None:
+            input_decoder = torch.cat([input_decoder, expr], dim=1).type(torch.int64)
         if phase == 'train':
-            input_decoder = torch.cat([input_decoder, expr], dim=1).type(torch.int64)[:, :-1]
+            input_decoder = input_decoder[:, :-1]
         # input_decoder: B x T-1
         
         pos = self.pos_embedding(
@@ -127,9 +129,11 @@ def create_input(row, language):
     obs_data = torch.cat((X, y), dim=1)
 
     # Target Expression
-    padding_right = language.max_len - len(row['Target Expression'].traversal)
-    padding_expr = torch.nn.ConstantPad1d((0, padding_right), language.padding_idx)
-    expr = row['Target Expression'].traversal
-    expr = padding_expr(torch.Tensor(expr))
-
-    return obs_data, expr  # Alomejor cambiarlo para que sea una namedtuple
+    if 'Target Expression' in row:
+        padding_right = language.max_len - len(row['Target Expression'].traversal)
+        padding_expr = torch.nn.ConstantPad1d((0, padding_right), language.padding_idx)
+        expr = row['Target Expression'].traversal
+        expr = padding_expr(torch.Tensor(expr))
+        return obs_data, expr
+    
+    return obs_data

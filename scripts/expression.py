@@ -19,7 +19,7 @@ class Expression():
         if traversal is None:
             if model is not None:
                 assert prev_info is not None
-                input_info = create_input(prev_info, self.language)
+                input_info, _ = create_input(prev_info, self.language)
                 traversal = self.generate_expression_from_model(model, input_info, 
                                                                 record_probabilities=record_probabilities,
                                                                 discover_probability=discover_probability)
@@ -117,6 +117,7 @@ class Expression():
         if np.random.random() < discover_probability:
             choice = np.random.choice(possibilities, p=prob_possibilities)
         else:
+            print('Put the max')
             choice = possibilities[np.argmax(prob_possibilities)]
 
         # Determine if we are adding a function or terminal -> Add Function if we got a function and there will be enough nodes to add it and add its children
@@ -154,6 +155,7 @@ class Expression():
                 if np.random.random() < discover_probability:
                     choice = np.random.choice(possibilities, p=prob_possibilities)
                 else:
+                    print('Put the max')
                     choice = possibilities[np.argmax(prob_possibilities)]
 
             choice = int(choice)
@@ -192,8 +194,8 @@ class Expression():
         else:
             model.eval()
 
-        Xy = input_info[0].unsqueeze(0).to(device)
-        prev_exprs = input_info[1].unsqueeze(0).to(device)
+        Xy = input_info.unsqueeze(0).to(device)
+        prev_exprs = None
 
         while First or arities_stack:   # While there are operands/operators to add
             P_original = model(Xy, prev_exprs).squeeze(0)
@@ -202,7 +204,7 @@ class Expression():
             First = False
             token_idx = self.language.symbol_to_idx[program[-1]] if isinstance(program[-1], str) else program[-1]
             to_append = torch.Tensor([token_idx]).unsqueeze(0).to(device)
-            prev_exprs = torch.cat((prev_exprs, to_append), dim=1)
+            prev_exprs = torch.cat((prev_exprs, to_append), dim=1) if prev_exprs is not None else to_append
 
             if record_probabilities:
                 probabilities.append(P_original[-1, token_idx])

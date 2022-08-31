@@ -119,46 +119,51 @@ class ETIN():
         self.etin_model.to(device)
         optimizer = torch.optim.Adam(self.etin_model.parameters(), lr=train_cfg.lr)
         data = Dataset(train_cfg.episodes, self.language)
-
+        
         def compute_reward(y_pred, y_true, expression):
             # Compute NORMALIZED RMSE between the prediction and the actual y and add a penalty for complexity of the expression
             std_y_true = np.std(y_true)
             nrmse = np.sqrt(np.mean((y_pred - y_true)**2)) / std_y_true
-            complexity = 0  # ESTO CAMBIARLO POR UNA BUENA MEDIDA DE COMPLEJIDAD
-            x =  nrmse + complexity * train_cfg.complexity_penalty
-            return train_cfg.squishing_scale / (1 + x)
+            complexity = 0
+            for token in expression.traversal:
+                if token in self.language.idx_to_symbol:
+                    complexity += self.language.complexity[self.language.idx_to_symbol[token]]
+            return train_cfg.squishing_scale / (1 + nrmse) - train_cfg.complexity_penalty * complexity
         
         history, control = ResultsContainer(), ResultsContainer()
-
         initial_discover_probability = train_cfg.discover_probability
-        discover_probability = initial_discover_probability
 
         for episode, row in enumerate(data):
-            saved_probs, rewards = [], []
+            saved_probs, rewards, max_rewards = [], [], []
+            max_reward = -1
+            discover_probability = initial_discover_probability * train_cfg.decay**episode
+            for _ in range(train_cfg.num_expressions):
+                probs = []
+                # Generate an episode
+                new_expr = Expression(self.language, model=self.etin_model, prev_info=row,
+                                      record_probabilities=True, discover_probability=discover_probability)
+                y_pred = new_expr.evaluate(row['X'])
+                if (np.isnan(y_pred).any() or np.abs(y_pred).max() > 1e5 or np.abs(y_pred).min() < 1e-2):
+                    continue
 
-            # Generate an episode
-            new_expr = Expression(self.language, model=self.etin_model, prev_info=row, 
-                                  record_probabilities=True, discover_probability=discover_probability)
-            y_pred = new_expr.evaluate(row['X'])
-            if (np.isnan(y_pred).any() or np.abs(y_pred).max() > 1e5 or np.abs(y_pred).min() < 1e-2):
-                continue
-            saved_probs += new_expr.probabilities
-            expression_reward = compute_reward(y_pred, row['y'], new_expr)
-            rewards = [expression_reward for _ in range(len(new_expr.probabilities))]
+                expression_reward = compute_reward(y_pred, row['y'], new_expr)
+                if expression_reward > max_reward:
+                    max_reward = expression_reward
+                    saved_probs = new_expr.probabilities
+                rewards.append(expression_reward)
                 
-
             if rewards:
-                control.scores.append(expression_reward)
-
-                rewards = torch.Tensor(rewards).to(device)
+                control.scores.append(np.mean(rewards))
+                control.max_scores.append(max_reward)
                 log_probs = torch.log(torch.stack(saved_probs))
-                policy_gradient = (-rewards * log_probs).mean()
+                episode_rewards = [max_reward for _ in range(len(saved_probs))]
+                episode_rewards = torch.Tensor(episode_rewards).to(device)
+                policy_gradient = (-episode_rewards * log_probs).mean()
 
                 # Optimize
                 optimizer.zero_grad()
                 policy_gradient.backward()
-                optimizer.step()   # Mirar porque seguramente aqui hay un fallo
-
+                optimizer.step()
                 
                 control.log_probs.append(torch.mean(log_probs.detach().cpu()).item())
                 control.loss.append(policy_gradient.detach().cpu().numpy())
@@ -166,7 +171,7 @@ class ETIN():
                 del log_probs, rewards, new_expr
 
             if (episode + 1) % train_cfg.control_each == 0:
-                print('Episode', episode + 1, 'score', np.mean(control.scores), 'loss', np.mean(control.loss), 'log_probs', np.mean(control.log_probs))
+                print('Episode', episode + 1, 'max_score', np.mean(control.max_scores), 'score', np.mean(control.scores), 'loss', np.mean(control.loss), 'log_probs', np.mean(control.log_probs))
                 history.scores.append(np.mean(control.scores))
                 history.loss.append(np.mean(control.loss))
                 history.log_probs.append(np.mean(control.log_probs))
@@ -181,10 +186,7 @@ class ETIN():
                     'loss': history.loss,
                     'log_probs': history.log_probs
                 }
-                torch.save(state, train_cfg.model_path+'model_'+str(episode + 1)+'.pt')
-
-            discover_probability = initial_discover_probability * train_cfg.decay ** episode
-
+                torch.save(state, train_cfg.model_path+'/model_'+str(episode + 1)+'.pt')
 
 def get_memory():
     r = torch.cuda.memory_reserved(0)
@@ -197,6 +199,7 @@ class ResultsContainer:
         self.scores = []
         self.log_probs = []
         self.loss = []
+        self.max_scores = []
     
     def reset(self):
         self.__init__
