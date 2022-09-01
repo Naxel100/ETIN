@@ -152,7 +152,7 @@ class ETIN():
                     saved_probs = new_expr.probabilities
                 rewards.append(expression_reward)
                 
-            if rewards:
+            if rewards and saved_probs:
                 control.scores.append(np.mean(rewards))
                 control.max_scores.append(max_reward)
                 log_probs = torch.log(torch.stack(saved_probs))
