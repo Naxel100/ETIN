@@ -11,7 +11,6 @@ Language:
   prob_add_const: 0.05
   prob_mult_const: 0.3
 
-
 # Properties of the model
 Model:
   from_path: '/home/gridsan/amorenas/ETIN/outputs/2022-08-22/14-42-22/Weights/log_epoch=20_val_loss=1.07.ckpt'
@@ -38,15 +37,17 @@ Train:
     epochs: 32
     precision: 16
     log_frequency: 16
+    seed: null
 
   RL_Training:
-    episodes: 100000
-    num_expressions: 1
-    complexity_penalty: 0
+    episodes: 1000000
+    num_expressions: 10
+    complexity_penalty: 0.20
     squishing_scale: 1
-    lr: 0.00000005
+    lr: 0.0000001
     discover_probability: 1.
     decay: 1.
-    control_each: 500
-    save_each: 100001
-    model_path: '/home/gridsan/amorenas/ETIN3/outputs/rl_base2'
+    control_each: 100
+    save_each: 50000
+    model_path: '/home/gridsan/amorenas/ETIN3/outputs/rl_020'
+    seed: 42

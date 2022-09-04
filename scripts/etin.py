@@ -25,7 +25,6 @@ class ETIN():
     def __init__(self, language_cfg, model_cfg, seed=69):
         
         # Seed everything to obtain reproducible results
-        self.seed = seed
         seed_everything(seed)
         # Save the model configuration
         self.model_cfg = model_cfg
@@ -66,6 +65,10 @@ class ETIN():
     
 
     def supervised_training(self, train_cfg):
+
+        if train_cfg.seed is not None:
+            seed_everything(train_cfg.seed)
+
         # Add train_cfg to the model
         self.etin_model.add_train_cfg(train_cfg)
 
@@ -111,10 +114,9 @@ class ETIN():
 
 
 
-    def rl_training(self, train_cfg, seed_again=True):
-
-        if seed_again:
-            seed_everything(self.seed)
+    def rl_training(self, train_cfg):
+        if train_cfg.seed is not None:
+            seed_everything(train_cfg.seed)
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.etin_model.to(device)
         optimizer = torch.optim.Adam(self.etin_model.parameters(), lr=train_cfg.lr)
@@ -128,17 +130,17 @@ class ETIN():
             for token in expression.traversal:
                 if token in self.language.idx_to_symbol:
                     complexity += self.language.complexity[self.language.idx_to_symbol[token]]
-            return train_cfg.squishing_scale / (1 + nrmse) - train_cfg.complexity_penalty * complexity
+            return train_cfg.squishing_scale / (1 + nrmse) - train_cfg.complexity_penalty * complexity, nrmse
         
         history, control = ResultsContainer(), ResultsContainer()
         initial_discover_probability = train_cfg.discover_probability
 
         for episode, row in enumerate(data):
-            saved_probs, rewards, max_rewards = [], [], []
+            print('Episode;', episode)
+            saved_probs, rewards, max_rewards, nrmses = [], [], [], []
             max_reward = -1
             discover_probability = initial_discover_probability * train_cfg.decay**episode
             for _ in range(train_cfg.num_expressions):
-                probs = []
                 # Generate an episode
                 new_expr = Expression(self.language, model=self.etin_model, prev_info=row,
                                       record_probabilities=True, discover_probability=discover_probability)
@@ -146,14 +148,16 @@ class ETIN():
                 if (np.isnan(y_pred).any() or np.abs(y_pred).max() > 1e5 or np.abs(y_pred).min() < 1e-2):
                     continue
 
-                expression_reward = compute_reward(y_pred, row['y'], new_expr)
+                expression_reward, nrmse = compute_reward(y_pred, row['y'], new_expr)
                 if expression_reward > max_reward:
                     max_reward = expression_reward
                     saved_probs = new_expr.probabilities
                 rewards.append(expression_reward)
+                nrmses.append(nrmse)
                 
             if rewards and saved_probs:
                 control.scores.append(np.mean(rewards))
+                control.nrmses.append(np.mean(nrmses))
                 control.max_scores.append(max_reward)
                 log_probs = torch.log(torch.stack(saved_probs))
                 episode_rewards = [max_reward for _ in range(len(saved_probs))]
@@ -171,10 +175,11 @@ class ETIN():
                 del log_probs, rewards, new_expr
 
             if (episode + 1) % train_cfg.control_each == 0:
-                print('Episode', episode + 1, 'max_score', np.mean(control.max_scores), 'score', np.mean(control.scores), 'loss', np.mean(control.loss), 'log_probs', np.mean(control.log_probs))
+                print('Episode', episode + 1, 'max_score', np.mean(control.max_scores), 'score', np.mean(control.scores), 'nrmse', np.mean(control.nrmses), 'loss', np.mean(control.loss), 'log_probs', np.mean(control.log_probs))
                 history.scores.append(np.mean(control.scores))
                 history.loss.append(np.mean(control.loss))
                 history.log_probs.append(np.mean(control.log_probs))
+                history.nrmses.append(np.mean(control.nrmses))
                 control.reset()
                 
             if (episode + 1) % train_cfg.save_each == 0:
@@ -188,18 +193,14 @@ class ETIN():
                 }
                 torch.save(state, train_cfg.model_path+'/model_'+str(episode + 1)+'.pt')
 
-def get_memory():
-    r = torch.cuda.memory_reserved(0)
-    a = torch.cuda.memory_allocated(0)
-    f = r-a  # free inside reserved
-    return f
 
 class ResultsContainer:
     def __init__(self):
+        self.reset()
+    
+    def reset(self):
         self.scores = []
         self.log_probs = []
         self.loss = []
         self.max_scores = []
-    
-    def reset(self):
-        self.__init__
+        self.nrmses = []
