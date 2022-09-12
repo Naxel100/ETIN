@@ -175,11 +175,21 @@ class ETIN():
                 del log_probs, rewards, new_expr
 
             if (episode + 1) % train_cfg.control_each == 0:
-                print('Episode', episode + 1, 'max_score', np.mean(control.max_scores), 'score', np.mean(control.scores), 'nrmse', np.mean(control.nrmses), 'loss', np.mean(control.loss), 'log_probs', np.mean(control.log_probs))
+                # print('Episode', episode + 1, 'max_score', np.mean(control.max_scores), 'score', np.mean(control.scores), 'nrmse', np.mean(control.nrmses), 'loss', np.mean(control.loss), 'log_probs', np.mean(control.log_probs))
+                history.max_scores.append(np.mean(control.max_scores))
+                history.std_max_scores.append(np.std(control.max_scores))
+
                 history.scores.append(np.mean(control.scores))
+                history.std_scores.append(np.std(control.scores))
+
                 history.loss.append(np.mean(control.loss))
+                history.std_loss.append(np.std(control.loss))
+
                 history.log_probs.append(np.mean(control.log_probs))
+                history.std_log_probs.append(np.std(control.log_probs))
+
                 history.nrmses.append(np.mean(control.nrmses))
+                history.std_nrmses.append(np.std(control.nrmses))
                 control.reset()
                 
             if (episode + 1) % train_cfg.save_each == 0:
@@ -187,9 +197,16 @@ class ETIN():
                     'epoch': episode + 1,
                     'state_dict': self.etin_model.state_dict(),
                     'optimizer': optimizer.state_dict(),
+                    'max_scores': history.max_scores,
+                    'std_max_scores': history.std_max_scores,
                     'scores': history.scores,
+                    'std_scores': history.std_scores,
                     'loss': history.loss,
-                    'log_probs': history.log_probs
+                    'std_loss': history.std_loss,
+                    'log_probs': history.log_probs,
+                    'std_log_probs': history.std_log_probs,
+                    'nrmses': history.nrmses,
+                    'std_nrmses': history.std_nrmses
                 }
                 torch.save(state, train_cfg.model_path+'/model_'+str(episode + 1)+'.pt')
 
@@ -199,8 +216,13 @@ class ResultsContainer:
         self.reset()
     
     def reset(self):
-        self.scores = []
-        self.log_probs = []
-        self.loss = []
         self.max_scores = []
+        self.std_max_scores = []
+        self.scores = []
+        self.std_scores = []
+        self.log_probs = []
+        self.std_log_probs = []
+        self.loss = []
+        self.std_loss = []
         self.nrmses = []
+        self.std_nrmses = []

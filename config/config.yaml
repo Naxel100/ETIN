@@ -40,14 +40,14 @@ Train:
     seed: null
 
   RL_Training:
-    episodes: 1000000
-    num_expressions: 10
-    complexity_penalty: 0.20
+    episodes: 200000
+    num_expressions: 5
+    complexity_penalty: 0.00
     squishing_scale: 1
     lr: 0.0000001
     discover_probability: 1.
     decay: 1.
     control_each: 100
-    save_each: 50000
-    model_path: '/home/gridsan/amorenas/ETIN3/outputs/rl_020'
+    save_each: 25000
+    model_path: '/home/gridsan/amorenas/ETIN3/outputs/rl_5_000'
     seed: 42
