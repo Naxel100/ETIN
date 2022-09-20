@@ -14,15 +14,20 @@ from pytorch_lightning.loggers import CSVLogger
 import numpy as np
 from pytorch_lightning.utilities.seed import seed_everything
 import time
+import warnings
 from .expression import Expression
 from pytorch_lightning.strategies.ddp import DDPStrategy
 from multiprocessing import Manager
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 
+def nrmse(y_pred, y_true):
+    std_y_true = np.std(y_true)
+    return np.sqrt(np.mean((y_pred - y_true)**2)) / std_y_true
+
 
 class ETIN():
-    def __init__(self, language_cfg, model_cfg, seed=69):
+    def __init__(self, language_cfg, model_cfg, seed=69, from_path=None):
         
         # Seed everything to obtain reproducible results
         seed_everything(seed)
@@ -31,13 +36,97 @@ class ETIN():
         # Create Language of the the Expressions with the given restrictions
         self.language = Language(language_cfg)
         # Create an Expression Tree Improver Network (ETIN)
-        self.from_ckpt = model_cfg.from_path is not None
+        if from_path is None and model_cfg.from_path is not None:
+            from_path = model_cfg.from_path
+        self.from_ckpt = from_path is not None
         if not self.from_ckpt:
             self.etin_model = ETIN_model(model_cfg, self.language.info_for_model)
         else:
             self.etin_model = ETIN_model.load_from_checkpoint(model_cfg.from_path, cfg=self.model_cfg, info_for_model=self.language.info_for_model)
                                
 
+    def get_expression(self, X, y, method='random', 
+                       max_expressions=100, n_beam=3, n_gens_per_beam=3, beam_mode='mean', 
+                       error_function=nrmse):
+        
+        if method == 'random':
+            return self.get_expression_by_random(X, y, max_expressions, error_function)
+        
+        elif method == 'beam search':
+            return self.get_expression_by_bsearch(X, y, n_beam, n_gens_per_beam, error_function, beam_mode)
+
+    
+    def get_expression_by_bsearch(self, X, y, n_beam, n_gens_per_beam, error_function, beam_mode):
+
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.etin_model.to(device)
+
+        input_info, _ = create_input(prev_info, self.language)
+        Xy = input_info.unsqueeze(0).to(device)
+        enc_src = self.etin_model(Xy, None, only_encoder=True)
+
+        res = []
+        program = []
+        finished = False
+
+
+        while not finished:
+            P = self.etin_model(Xy, None, enc_src=enc_src).squeeze(0).detach().cpu().numpy()[-1]
+            choices = self.language.function_set_symbols
+            selections = sorted(zip(P[:len(choices)], choices), reverse=True)[:n_beam]
+            best_program = []
+            best_score = 1e10
+            for selection in selections:
+                symbol_selection = selection[1] if selection[1] not in self.language.idx_to_symbol else self.language.idx_to_symbol[selection[1]]
+                new_program = program + symbol_selection
+
+                error_min, error_sum, cont = 1e10, 0, 0
+                for _ in n_gens_per_beam:
+                    new_expr = Expression(self.language, model=self.etin_model, 
+                                          prev_info=prev_info, enc_src=enc_src, partial_expression=new_program)
+                    y_pred = new_expr.evaluate(X)
+                    if (np.isnan(y_pred).any() or np.abs(y_pred).max() > 1e5 or np.abs(y_pred).min() < 1e-2):
+                        continue
+                    res.append({'expression': new_expr, 'error': error})
+                    error_sum += error_function(y_pred, y)
+                    cont += 1
+                    if error < error_min:
+                        error_min = error
+                error_sum /= cont
+
+                if beam_mode == 'mean' and error_sum < best_score:
+                    best_score = error_sum
+                    best_program = new_program
+
+                elif beam_mode == 'min' and error_min < best_score:
+                    best_score = error_min
+                    best_program = new_program
+            program = best_program
+
+        return res
+
+
+
+    def get_expression_by_random(self, X, y, max_expressions, error_function):
+
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.etin_model.to(device)
+
+        input_info, _ = create_input(prev_info, self.language)
+        Xy = input_info.unsqueeze(0).to(device)
+        enc_src = self.etin_model(Xy, None, only_encoder=True)
+
+        res = []
+
+        for _ in range(max_expressions):
+            expr = Expression(self.language, model=self.etin_model, prev_info=prev_info, enc_src=enc_src)
+            y_pred = expr.evaluate(X)
+            if (np.isnan(y_pred).any() or np.abs(y_pred).max() > 1e5 or np.abs(y_pred).min() < 1e-2):
+                continue
+            error = error_function(y_pred, y)
+            res.append({'expression': expr, 'error': error})
+        return res
+            
 
     def train(self, train_cfg):
         self.etin_model.add_train_cfg(train_cfg.Supervised_Training)
@@ -124,36 +213,41 @@ class ETIN():
         
         def compute_reward(y_pred, y_true, expression):
             # Compute NORMALIZED RMSE between the prediction and the actual y and add a penalty for complexity of the expression
-            std_y_true = np.std(y_true)
-            nrmse = np.sqrt(np.mean((y_pred - y_true)**2)) / std_y_true
+            nrmse_res = nrmse(y_pred, y_true)
             complexity = 0
             for token in expression.traversal:
                 if token in self.language.idx_to_symbol:
                     complexity += self.language.complexity[self.language.idx_to_symbol[token]]
-            return train_cfg.squishing_scale / (1 + nrmse) - train_cfg.complexity_penalty * complexity, nrmse
+            return train_cfg.squishing_scale / (1 + nrmse_res) - train_cfg.complexity_penalty * complexity, nrmse_res
         
         history, control = ResultsContainer(), ResultsContainer()
         initial_discover_probability = train_cfg.discover_probability
 
         for episode, row in enumerate(data):
-            print('Episode;', episode)
             saved_probs, rewards, max_rewards, nrmses = [], [], [], []
             max_reward = -1
             discover_probability = initial_discover_probability * train_cfg.decay**episode
+            if train_cfg.num_expressions > 1:
+                input_info, _ = create_input(row, self.language)
+                Xy = input_info.unsqueeze(0).to(device)
+                enc_src = self.etin_model(Xy, None, only_encoder=True)
+            else:
+                enc_src = None
+
             for _ in range(train_cfg.num_expressions):
                 # Generate an episode
-                new_expr = Expression(self.language, model=self.etin_model, prev_info=row,
+                new_expr = Expression(self.language, model=self.etin_model, prev_info=row, enc_src=enc_src,
                                       record_probabilities=True, discover_probability=discover_probability)
                 y_pred = new_expr.evaluate(row['X'])
                 if (np.isnan(y_pred).any() or np.abs(y_pred).max() > 1e5 or np.abs(y_pred).min() < 1e-2):
                     continue
 
-                expression_reward, nrmse = compute_reward(y_pred, row['y'], new_expr)
+                expression_reward, nrmse_res = compute_reward(y_pred, row['y'], new_expr)
                 if expression_reward > max_reward:
                     max_reward = expression_reward
                     saved_probs = new_expr.probabilities
                 rewards.append(expression_reward)
-                nrmses.append(nrmse)
+                nrmses.append(nrmse_res)
                 
             if rewards and saved_probs:
                 control.scores.append(np.mean(rewards))

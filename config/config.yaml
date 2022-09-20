@@ -13,7 +13,7 @@ Language:
 
 # Properties of the model
 Model:
-  from_path: '/home/gridsan/amorenas/ETIN/outputs/2022-08-22/14-42-22/Weights/log_epoch=20_val_loss=1.07.ckpt'
+  from_path: null #'/home/gridsan/amorenas/ETIN/outputs/2022-08-23/23-08-45/Weights/log_epoch=16_val_loss=0.75.ckpt'
   dim_hidden: 512
   dropout: 0.0
   dim_feedforward: 512
@@ -40,7 +40,7 @@ Train:
     seed: null
 
   RL_Training:
-    episodes: 200000
+    episodes: 400000
     num_expressions: 5
     complexity_penalty: 0.00
     squishing_scale: 1
@@ -49,5 +49,5 @@ Train:
     decay: 1.
     control_each: 100
     save_each: 25000
-    model_path: '/home/gridsan/amorenas/ETIN3/outputs/rl_5_000'
+    model_path: '/home/gridsan/amorenas/ETIN3/outputs/rl_5_000_ini'
     seed: 42

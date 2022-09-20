@@ -56,9 +56,13 @@ class ETIN_model(pl.LightningModule):
         out.requires_grad = False
 
 
-    def forward(self, X, expr=None, phase='eval'):
+    def forward(self, X, expr=None, phase='eval', only_encoder=False, enc_src=None):
         # X -> B x N x X
-        enc_src = self.set_encoder(X)
+        if enc_src is None:
+            enc_src = self.set_encoder(X)
+        
+        if only_encoder:
+            return enc_src
         # enc_src: B x F x E
 
         input_decoder = (self.ini_idx * torch.ones(X.shape[0]).unsqueeze(1).type(torch.int64)).to(self.device)
@@ -136,4 +140,4 @@ def create_input(row, language):
         expr = padding_expr(torch.Tensor(expr))
         return obs_data, expr
     
-    return obs_data
+    return obs_data, None
