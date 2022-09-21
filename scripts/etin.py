@@ -46,7 +46,7 @@ class ETIN():
                                
 
     def get_expression(self, X, y, method='random', 
-                       max_expressions=100, n_beam=3, n_gens_per_beam=3, beam_mode='mean', 
+                       max_expressions=100, n_beam=2, n_gens_per_beam=10, beam_mode='mean', 
                        error_function=nrmse):
         
         if method == 'random':
@@ -61,9 +61,19 @@ class ETIN():
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.etin_model.to(device)
 
+        prev_info = {'X': X, 'y': y}
         input_info, _ = create_input(prev_info, self.language)
         Xy = input_info.unsqueeze(0).to(device)
         enc_src = self.etin_model(Xy, None, only_encoder=True)
+
+        def is_finished(program):
+            arity = 1
+            for symbol in program:
+                if isinstance(symbol, str):
+                    arity += (self.language.symbol_to_token[symbol].arity - 1)
+                else:
+                    arity -= 1
+            return arity == 0
 
         res = []
         program = []
@@ -71,37 +81,43 @@ class ETIN():
 
 
         while not finished:
-            P = self.etin_model(Xy, None, enc_src=enc_src).squeeze(0).detach().cpu().numpy()[-1]
-            choices = self.language.function_set_symbols
-            selections = sorted(zip(P[:len(choices)], choices), reverse=True)[:n_beam]
             best_program = []
-            best_score = 1e10
-            for selection in selections:
-                symbol_selection = selection[1] if selection[1] not in self.language.idx_to_symbol else self.language.idx_to_symbol[selection[1]]
-                new_program = program + symbol_selection
-
-                error_min, error_sum, cont = 1e10, 0, 0
-                for _ in n_gens_per_beam:
+            best_score = np.inf
+            for i in range(n_beam):
+                error_min, error_mean, cont = np.inf, 0, 0
+                for k in range(n_gens_per_beam):
                     new_expr = Expression(self.language, model=self.etin_model, 
-                                          prev_info=prev_info, enc_src=enc_src, partial_expression=new_program)
+                                          prev_info=prev_info, enc_src=enc_src, 
+                                          partial_expression=program, max_pos=i)
                     y_pred = new_expr.evaluate(X)
-                    if (np.isnan(y_pred).any() or np.abs(y_pred).max() > 1e5 or np.abs(y_pred).min() < 1e-2):
+                    if (np.isnan(y_pred).any() or np.abs(y_pred).max() > 1e5 or np.abs(y_pred).max() - np.abs(y_pred).min() == 0):
                         continue
+                    error = error_function(y_pred, y)
                     res.append({'expression': new_expr, 'error': error})
-                    error_sum += error_function(y_pred, y)
+                    print(i, k, new_expr.traversal, error)
+                    if error < 1e-10:
+                        return res
+                    error_mean += error
                     cont += 1
                     if error < error_min:
                         error_min = error
-                error_sum /= cont
+                if cont > 0:
+                    error_mean /= cont
 
-                if beam_mode == 'mean' and error_sum < best_score:
-                    best_score = error_sum
-                    best_program = new_program
+                if beam_mode == 'mean' and error_mean < best_score:
+                    best_score = error_mean
+                    new_token = new_expr.traversal[len(program)]
+                    new_token = new_token if new_token not in self.language.idx_to_symbol else self.language.idx_to_symbol[new_token]
+                    best_program = program + [new_token]
 
                 elif beam_mode == 'min' and error_min < best_score:
                     best_score = error_min
-                    best_program = new_program
+                    new_token = new_expr.traversal[len(program)]
+                    new_token = new_token if new_token not in self.language.idx_to_symbol else self.language.idx_to_symbol[new_token]
+                    best_program = program + [new_token]
             program = best_program
+            print(program)
+            finished = is_finished(program)
 
         return res
 
@@ -112,6 +128,7 @@ class ETIN():
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.etin_model.to(device)
 
+        prev_info = {'X': X, 'y': y}
         input_info, _ = create_input(prev_info, self.language)
         Xy = input_info.unsqueeze(0).to(device)
         enc_src = self.etin_model(Xy, None, only_encoder=True)
@@ -121,7 +138,8 @@ class ETIN():
         for _ in range(max_expressions):
             expr = Expression(self.language, model=self.etin_model, prev_info=prev_info, enc_src=enc_src)
             y_pred = expr.evaluate(X)
-            if (np.isnan(y_pred).any() or np.abs(y_pred).max() > 1e5 or np.abs(y_pred).min() < 1e-2):
+
+            if (np.isnan(y_pred).any() or np.abs(y_pred).max() > 1e5 or np.abs(y_pred).max() - np.abs(y_pred).min() == 0):
                 continue
             error = error_function(y_pred, y)
             res.append({'expression': expr, 'error': error})
@@ -132,10 +150,10 @@ class ETIN():
         self.etin_model.add_train_cfg(train_cfg.Supervised_Training)
 
         # Supervised training
-        # self.supervised_training(train_cfg.Supervised_Training)
+        self.supervised_training(train_cfg.Supervised_Training)
 
         # Unsupervised training
-        self.rl_training(train_cfg.RL_Training)
+        # self.rl_training(train_cfg.RL_Training)
                 
     
     def preprocessing(self, data):
@@ -175,7 +193,7 @@ class ETIN():
 
         # Create the trainer
         trainer = pl.Trainer(
-            # strategy=DDPStrategy(find_unused_parameters=False),
+            strategy=DDPStrategy(find_unused_parameters=False),
             gpus=train_cfg.gpus,
             max_epochs=train_cfg.epochs,
             logger=logger,
@@ -197,9 +215,9 @@ class ETIN():
         trainer.fit(self.etin_model, train_dataloader, test_dataloader)
 
         # Recover the best model for the next mega epoch
-        self.ckpt_path = checkpoint_callback.best_model_path
-        self.etin_model = self.etin_model.load_from_checkpoint(self.ckpt_path, cfg=self.model_cfg, info_for_model=self.language.info_for_model)
-        self.etin_model.add_train_cfg(train_cfg)
+        # self.ckpt_path = checkpoint_callback.best_model_path
+        # self.etin_model = self.etin_model.load_from_checkpoint(self.ckpt_path, cfg=self.model_cfg, info_for_model=self.language.info_for_model)
+        # self.etin_model.add_train_cfg(train_cfg)
 
 
 
@@ -239,7 +257,7 @@ class ETIN():
                 new_expr = Expression(self.language, model=self.etin_model, prev_info=row, enc_src=enc_src,
                                       record_probabilities=True, discover_probability=discover_probability)
                 y_pred = new_expr.evaluate(row['X'])
-                if (np.isnan(y_pred).any() or np.abs(y_pred).max() > 1e5 or np.abs(y_pred).min() < 1e-2):
+                if (np.isnan(y_pred).any() or np.abs(y_pred).max() > 1e5 or np.abs(y_pred).max() - np.abs(y_pred).min() == 0):
                     continue
 
                 expression_reward, nrmse_res = compute_reward(y_pred, row['y'], new_expr)

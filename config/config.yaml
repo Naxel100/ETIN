@@ -29,11 +29,11 @@ Model:
 # Train configuration
 Train:
   Supervised_Training:
-    n_functions_train: 1
-    n_functions_test: 1
+    n_functions_train: 10000000
+    n_functions_test: 100000
     batch_size: 64
     lr: 0.00003
-    gpus: 1
+    gpus: 2
     epochs: 32
     precision: 16
     log_frequency: 16

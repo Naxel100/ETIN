@@ -10,7 +10,8 @@ class Expression():
     '''
     This class represents an Expression Tree. It is composed by a list of tokens/traversal (ex: [0, 2, 1]) and its one-hot-encoding representation in torch ([[1,0,0],[0,0,1],[0,1,0]]).
     '''
-    def __init__(self, language, traversal=None, record_probabilities=False, enc_src=None, partial_expression=None,
+    def __init__(self, language, traversal=None, record_probabilities=False, enc_src=None, 
+                 partial_expression=None, put_max_after_partial=True, max_pos=0,
                  model=None, prev_info=None, constants=None, discover_probability=1.):
         # Save in self the variables needed
         self.language = language
@@ -23,7 +24,8 @@ class Expression():
                 traversal = self.generate_expression_from_model(model, input_info, 
                                                                 record_probabilities=record_probabilities,
                                                                 discover_probability=discover_probability,
-                                                                enc_src=enc_src, partial_expression=partial_expression)
+                                                                enc_src=enc_src, partial_expression=partial_expression,
+                                                                put_max_after_partial=True, max_pos=max_pos)
             else:
                 traversal = self.generate_random_expression(partial_expression=partial_expression)
         
@@ -104,7 +106,7 @@ class Expression():
 
 
     
-    def add_node_model(self, arities_stack, function_stack, program, will_be_nodes, might_use_constant, P, discover_probability=1., choice=None):
+    def add_node_model(self, arities_stack, function_stack, program, will_be_nodes, might_use_constant, P, discover_probability=1., choice=None, max_val=-1):
         if choice is None:
             if not function_stack:
                 possibilities = list(self.language.function_set_symbols) + list(range(self.n_variables))
@@ -120,10 +122,13 @@ class Expression():
             prob_possibilities = list(map(P.__getitem__, indices))
             prob_possibilities = [p / sum(prob_possibilities) for p in prob_possibilities]
             # Choose a token idx
-            if np.random.random() < discover_probability:
-                choice = np.random.choice(possibilities, p=prob_possibilities)
+            if max_val == -1:
+                if np.random.random() < discover_probability:
+                    choice = np.random.choice(possibilities, p=prob_possibilities)
+                else:
+                    choice = possibilities[np.argmax(prob_possibilities)]
             else:
-                choice = possibilities[np.argmax(prob_possibilities)]
+                choice = sorted(zip(prob_possibilities, possibilities))[::-1][max_val][1]
 
         # Determine if we are adding a function or terminal -> Add Function if we got a function and there will be enough nodes to add it and add its children
         if (choice in self.language.function_set_symbols and 
@@ -159,10 +164,13 @@ class Expression():
                     possibilities.append(self.language.const_index)
                 prob_possibilities = list(map(P.__getitem__, possibilities))
                 prob_possibilities = [p / sum(prob_possibilities) for p in prob_possibilities]
-                if np.random.random() < discover_probability:
-                    choice = np.random.choice(possibilities, p=prob_possibilities)
+                if max_val == -1:
+                    if np.random.random() < discover_probability:
+                        choice = np.random.choice(possibilities, p=prob_possibilities)
+                    else:
+                        choice = possibilities[np.argmax(prob_possibilities)]
                 else:
-                    choice = possibilities[np.argmax(prob_possibilities)]
+                    choice = sorted(zip(prob_possibilities, possibilities))[::-1][max_val][1]
 
             choice = int(choice)
             to_append = [choice]
@@ -261,11 +269,11 @@ class Expression():
 
 
     def generate_expression_from_model(self, model, input_info, enc_src=None, partial_expression=None,
-                                       record_probabilities=False, device='cuda', discover_probability=1.):
-        if First is None:
-            First, might_use_constant = True, True
-            will_be_nodes = 1
-            arities_stack, function_stack, program, probabilities = [], [], [], []
+                                       record_probabilities=False, device='cuda', discover_probability=1.,
+                                       put_max_after_partial=True, max_pos=-1):
+        First, might_use_constant = True, True
+        will_be_nodes = 1
+        arities_stack, function_stack, program, probabilities = [], [], [], []
 
         # Set to train or eval dpending if we want to record probabilities (for rl part) or not
         if record_probabilities:
@@ -277,12 +285,17 @@ class Expression():
         prev_exprs = None
 
         while First or arities_stack:   # While there are operands/operators to add
-            P_original = model(Xy, prev_exprs, enc_src=enc_src).squeeze(0)
-            P = P_original.detach().cpu().numpy()[-1]
-            choice = None
             if partial_expression is not None and len(program) < len(partial_expression):
                 choice = partial_expression[len(program)]
-            arities_stack, function_stack, program, will_be_nodes, might_use_constant = self.add_node_model(arities_stack, function_stack, program, will_be_nodes, might_use_constant, P, choice=choice)
+                P = None
+            else:
+                P_original = model(Xy, prev_exprs, enc_src=enc_src).squeeze(0)
+                P = P_original.detach().cpu().numpy()[-1]
+                choice = None
+            max_val = -1
+            if put_max_after_partial and partial_expression is not None and len(program) == len(partial_expression):
+                max_val = max_pos
+            arities_stack, function_stack, program, will_be_nodes, might_use_constant = self.add_node_model(arities_stack, function_stack, program, will_be_nodes, might_use_constant, P, choice=choice, max_val=max_val)
             First = False
             token_idx = self.language.symbol_to_idx[program[-1]] if isinstance(program[-1], str) else program[-1]
             to_append = torch.Tensor([token_idx]).unsqueeze(0).to(device)

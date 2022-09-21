@@ -10,7 +10,7 @@ def main(cfg):
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         # Create an Expression Tree Improver Network (ETIN)
-        etin = ETIN(cfg.Language, cfg.Model, seed=42)
+        etin = ETIN(cfg.Language, cfg.Model, seed=69)
         # Train the ETIN
         etin.train(cfg.Train)
         # ETIN ready to be used. Example:
