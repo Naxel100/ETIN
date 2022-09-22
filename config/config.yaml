@@ -8,8 +8,9 @@ Language:
   max_variables: 3
   max_len: 15
   use_constants: True
-  prob_add_const: 0.05
+  prob_add_const: 0.08
   prob_mult_const: 0.3
+  p_degenerated_program: 0.08
 
 # Properties of the model
 Model:
@@ -29,11 +30,11 @@ Model:
 # Train configuration
 Train:
   Supervised_Training:
-    n_functions_train: 10000000
-    n_functions_test: 100000
+    n_functions_train: 10000
+    n_functions_test: 10000
     batch_size: 64
-    lr: 0.00003
-    gpus: 2
+    lr: 0.000003
+    gpus: 1
     epochs: 32
     precision: 16
     log_frequency: 16

@@ -89,6 +89,7 @@ class Language():
         self.const_index = len(self.P) if cfg.use_constants else -1 # Index of the constant
         self.ini_index = len(self.P) + cfg.use_constants # To indicate the start of a new expression
         self.padd_index = len(self.P) + cfg.use_constants + 1 # Pading index
+        self.p_degenerated_program = cfg.p_degenerated_program
 
         # Functions used in the language
         self.function_set_symbols = self.function_set_symbols   # List of functions to be used

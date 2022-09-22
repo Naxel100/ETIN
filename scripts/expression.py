@@ -196,11 +196,14 @@ class Expression():
 
     def add_node_random(self, arities_stack, function_stack, program, will_be_nodes, First, P, choice=None):
         if choice is None:
-            if First:   # If it is the root
+            if First and np.random.random() > self.language.p_degenerated_program:   # If it is the root
                 possibilities = self.language.get_possibilities(n_variables=self.n_variables, to_take='operator') # Take a function to avoid degenerated expressions
             else:
                 # First let's check what we can add given the context (parent and its not_allowed operands/operators)
-                possibilities = self.language.get_possibilities(**function_stack[-1], n_variables=self.n_variables)
+                if function_stack:
+                    possibilities = self.language.get_possibilities(**function_stack[-1], n_variables=self.n_variables)
+                else:
+                    possibilities = list(self.language.function_set_symbols) + list(range(self.n_variables))
             # Get their correspondent probabilities and normalize them
             indices = sorted([self.language.symbol_to_idx[x] if isinstance(x, str) else x for x in possibilities])
             possibilities = [self.language.idx_to_symbol.get(x, x) for x in indices]
@@ -245,25 +248,24 @@ class Expression():
 
             choice = int(choice)
             to_append = [choice]
-            if (self.language.use_constants and 
-                self.language.symbol_to_token[function_stack[-1]['function']].arity == 1
-                and function_stack[-1]['function'] not in ['^', '^2', '^3', '^4']):  # If same kind of operand
+            if self.language.use_constants:  # If same kind of operand
                 to_append = self.insert_constants(choice, hollows=self.language.max_len - will_be_nodes)
             will_be_nodes += len(to_append) - 1
             program += to_append  # Append to program
 
-            function_stack[-1]['distributive'].add(choice)  # Add to the not_allowed set
-            arities_stack[-1] -= 1  # One node added to the parent, so we need to remove one from the arity
-            while arities_stack[-1] == 0:  # If completed arity of node 
-                arities_stack.pop()        # Remove it from the arity stack
-                if not arities_stack:      # If there are no more arities, we are done
-                    break
-                child_info = function_stack.pop()  # Remove it from the function stack
-                child_symbol = child_info['function']
-                child_set = child_info['distributive']  # Pass info of non-allowed variables to parent if DistributiveRestriction is used
-                arities_stack[-1] -= 1
-                if child_symbol == function_stack[-1]['function']:
-                    function_stack[-1]['distributive'].update(child_set)
+            if function_stack:
+                function_stack[-1]['distributive'].add(choice)  # Add to the not_allowed set
+                arities_stack[-1] -= 1  # One node added to the parent, so we need to remove one from the arity
+                while arities_stack[-1] == 0:  # If completed arity of node 
+                    arities_stack.pop()        # Remove it from the arity stack
+                    if not arities_stack:      # If there are no more arities, we are done
+                        break
+                    child_info = function_stack.pop()  # Remove it from the function stack
+                    child_symbol = child_info['function']
+                    child_set = child_info['distributive']  # Pass info of non-allowed variables to parent if DistributiveRestriction is used
+                    arities_stack[-1] -= 1
+                    if child_symbol == function_stack[-1]['function']:
+                        function_stack[-1]['distributive'].update(child_set)
 
         return arities_stack, function_stack, program, will_be_nodes
 
@@ -317,6 +319,7 @@ class Expression():
         arities_stack, function_stack, program = [], [], []
 
         while First or arities_stack:   # While there are operands/operators to add
+            choice = None
             if partial_expression is not None and len(program) < len(partial_expression):
                 choice = partial_expression[len(program)]
             arities_stack, function_stack, program, will_be_nodes = self.add_node_random(arities_stack, function_stack, program, will_be_nodes, First, self.language.P, choice=choice)
