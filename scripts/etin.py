@@ -20,6 +20,7 @@ from pytorch_lightning.strategies.ddp import DDPStrategy
 from multiprocessing import Manager
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
+from itertools import compress
 
 def nrmse(y_pred, y_true):
     std_y_true = np.std(y_true)
@@ -43,17 +44,51 @@ class ETIN():
             self.etin_model = ETIN_model(model_cfg, self.language.info_for_model)
         else:
             self.etin_model = ETIN_model.load_from_checkpoint(model_cfg.from_path, cfg=self.model_cfg, info_for_model=self.language.info_for_model)
-                               
+
+
+    def compute_complexity(self, traversal):
+        complexity = 0
+        for token in traversal:
+            if token in self.language.idx_to_symbol:
+                complexity += self.language.complexity[self.language.idx_to_symbol[token]]
+        return complexity
+
+    # Fairly fast for many datapoints, less fast for many costs, somewhat readable
+    def is_pareto_efficient(self, costs):
+        """
+        Find the pareto-efficient points
+        :param costs: An (n_points, n_costs) array
+        :return: A (n_points, ) boolean array, indicating whether each point is Pareto efficient
+        """
+        is_efficient = np.ones(costs.shape[0], dtype = bool)
+        for i, c in enumerate(costs):
+            if is_efficient[i]:
+                is_efficient[is_efficient] = np.any(costs[is_efficient]<c, axis=1)  # Keep any point with a lower cost
+                is_efficient[i] = True  # And keep self
+        return is_efficient                        
 
     def get_expression(self, X, y, method='random', 
                        max_expressions=100, n_beam=2, n_gens_per_beam=10, beam_mode='mean', 
-                       error_function=nrmse):
+                       error_function=nrmse, complexity_penalty=0.0):
+
+        assert X.shape[1] <= self.language.max_variables
+
+        if X.shape[1] != self.language.max_variables:
+            X = np.hstack((X, np.zeros((X.shape[0], 1))))
         
         if method == 'random':
-            return self.get_expression_by_random(X, y, max_expressions, error_function)
+            res = self.get_expression_by_random(X, y, max_expressions, error_function)
         
         elif method == 'beam search':
-            return self.get_expression_by_bsearch(X, y, n_beam, n_gens_per_beam, error_function, beam_mode)
+            res =  self.get_expression_by_bsearch(X, y, n_beam, n_gens_per_beam, error_function, beam_mode)
+        
+        else:
+            raise Exception('No method called', method)
+
+        dummy_array = np.array([[res[i]['error'], res[i]['complexity']] for i in range(len(res))])
+        is_efficient = self.is_pareto_efficient(dummy_array)
+        res = list(compress(res, is_efficient))
+        return sorted(res, key=lambda x: 1/(1+x['error']) - complexity_penalty*x['complexity'], reverse=True)
 
     
     def get_expression_by_bsearch(self, X, y, n_beam, n_gens_per_beam, error_function, beam_mode):
@@ -84,25 +119,27 @@ class ETIN():
             best_program = []
             best_score = np.inf
             for i in range(n_beam):
-                error_min, error_mean, cont = np.inf, 0, 0
+                error_min, error_mean, error_harmonic, cont = np.inf, 0, 0, 0
                 for k in range(n_gens_per_beam):
                     new_expr = Expression(self.language, model=self.etin_model, 
                                           prev_info=prev_info, enc_src=enc_src, 
                                           partial_expression=program, max_pos=i)
                     y_pred = new_expr.evaluate(X)
-                    if (np.isnan(y_pred).any() or np.abs(y_pred).max() > 1e5 or np.abs(y_pred).max() - np.abs(y_pred).min() == 0):
+                    if (np.isnan(y_pred).any() or np.abs(y_pred).max() > 1e5):
                         continue
                     error = error_function(y_pred, y)
-                    res.append({'expression': new_expr, 'error': error})
-                    print(i, k, new_expr.traversal, error)
+                    complexity = self.compute_complexity(new_expr.traversal)
+                    res.append({'expression': new_expr, 'error': error, 'complexity': complexity})
                     if error < 1e-10:
                         return res
                     error_mean += error
+                    error_harmonic += 1/(error + 1e-5)
                     cont += 1
                     if error < error_min:
                         error_min = error
                 if cont > 0:
                     error_mean /= cont
+                    error_harmonic = cont/error_harmonic
 
                 if beam_mode == 'mean' and error_mean < best_score:
                     best_score = error_mean
@@ -115,8 +152,14 @@ class ETIN():
                     new_token = new_expr.traversal[len(program)]
                     new_token = new_token if new_token not in self.language.idx_to_symbol else self.language.idx_to_symbol[new_token]
                     best_program = program + [new_token]
+
+                elif beam_mode == 'harmonic' and error_harmonic < best_score:
+                    best_score = error_harmonic
+                    new_token = new_expr.traversal[len(program)]
+                    new_token = new_token if new_token not in self.language.idx_to_symbol else self.language.idx_to_symbol[new_token]
+                    best_program = program + [new_token]
             program = best_program
-            print(program)
+            print('Program:', program)
             finished = is_finished(program)
 
         return res
@@ -142,7 +185,8 @@ class ETIN():
             if (np.isnan(y_pred).any() or np.abs(y_pred).max() > 1e5 or np.abs(y_pred).max() - np.abs(y_pred).min() == 0):
                 continue
             error = error_function(y_pred, y)
-            res.append({'expression': expr, 'error': error})
+            complexity = self.compute_complexity(expr.traversal)
+            res.append({'expression': expr, 'error': error, 'complexity': complexity})
         return res
             
 
@@ -201,7 +245,7 @@ class ETIN():
             precision=train_cfg.precision,
             log_every_n_steps=train_cfg.log_frequency,
             callbacks=[checkpoint_callback, early_stop_callback],
-            detect_anomaly=True,
+            # detect_anomaly=True,
             resume_from_checkpoint=self.model_cfg.from_path,
         )
 
@@ -232,10 +276,7 @@ class ETIN():
         def compute_reward(y_pred, y_true, expression):
             # Compute NORMALIZED RMSE between the prediction and the actual y and add a penalty for complexity of the expression
             nrmse_res = nrmse(y_pred, y_true)
-            complexity = 0
-            for token in expression.traversal:
-                if token in self.language.idx_to_symbol:
-                    complexity += self.language.complexity[self.language.idx_to_symbol[token]]
+            complexity = self.compute_complexity(expression.traversal)
             return train_cfg.squishing_scale / (1 + nrmse_res) - train_cfg.complexity_penalty * complexity, nrmse_res
         
         history, control = ResultsContainer(), ResultsContainer()

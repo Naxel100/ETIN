@@ -175,6 +175,8 @@ class Expression():
             choice = int(choice)
             to_append = [choice]
             program += to_append  # Append to program
+            if choice == self.language.const_index:
+                might_use_constant = False
             
             if function_stack:
                 function_stack[-1]['distributive'].add(choice)  # Add to the not_allowed set
