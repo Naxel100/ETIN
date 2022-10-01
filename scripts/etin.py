@@ -159,7 +159,6 @@ class ETIN():
                     new_token = new_token if new_token not in self.language.idx_to_symbol else self.language.idx_to_symbol[new_token]
                     best_program = program + [new_token]
             program = best_program
-            print('Program:', program)
             finished = is_finished(program)
 
         return res
@@ -194,10 +193,10 @@ class ETIN():
         self.etin_model.add_train_cfg(train_cfg.Supervised_Training)
 
         # Supervised training
-        self.supervised_training(train_cfg.Supervised_Training)
+        # self.supervised_training(train_cfg.Supervised_Training)
 
         # Unsupervised training
-        # self.rl_training(train_cfg.RL_Training)
+        self.rl_training(train_cfg.RL_Training)
                 
     
     def preprocessing(self, data):
@@ -283,7 +282,7 @@ class ETIN():
         initial_discover_probability = train_cfg.discover_probability
 
         for episode, row in enumerate(data):
-            saved_probs, rewards, max_rewards, nrmses = [], [], [], []
+            saved_probs, saved_entropies, rewards, max_rewards, nrmses = [], [], [], [], []
             max_reward = -1
             discover_probability = initial_discover_probability * train_cfg.decay**episode
             if train_cfg.num_expressions > 1:
@@ -305,6 +304,7 @@ class ETIN():
                 if expression_reward > max_reward:
                     max_reward = expression_reward
                     saved_probs = new_expr.probabilities
+                    saved_entropies = new_expr.entropies
                 rewards.append(expression_reward)
                 nrmses.append(nrmse_res)
                 
@@ -313,8 +313,10 @@ class ETIN():
                 control.nrmses.append(np.mean(nrmses))
                 control.max_scores.append(max_reward)
                 log_probs = torch.log(torch.stack(saved_probs))
-                episode_rewards = [max_reward for _ in range(len(saved_probs))]
+                b = history.max_scores[-1] if train_cfg.with_baseline and history.max_scores else 0
+                episode_rewards = [max_reward - b for _ in range(len(saved_probs))]
                 episode_rewards = torch.Tensor(episode_rewards).to(device)
+                episode_rewards = episode_rewards + train_cfg.entropy_weight * saved_entropies.to(device)
                 policy_gradient = (-episode_rewards * log_probs).mean()
 
                 # Optimize

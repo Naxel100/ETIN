@@ -4,6 +4,7 @@ from sympy import symbols
 from scipy.optimize import minimize
 from .model import create_input
 import torch
+from scipy.stats import entropy
 
 
 class Expression():
@@ -277,7 +278,7 @@ class Expression():
                                        put_max_after_partial=True, max_pos=-1):
         First, might_use_constant = True, True
         will_be_nodes = 1
-        arities_stack, function_stack, program, probabilities = [], [], [], []
+        arities_stack, function_stack, program, probabilities, entropies = [], [], [], [], []
 
         # Set to train or eval dpending if we want to record probabilities (for rl part) or not
         if record_probabilities:
@@ -306,8 +307,10 @@ class Expression():
             prev_exprs = torch.cat((prev_exprs, to_append), dim=1) if prev_exprs is not None else to_append
 
             if record_probabilities:
+                entropies.append(-torch.sum(pk * torch.log(P_original[-1])))
                 probabilities.append(P_original[-1, token_idx])
                 self.probabilities = probabilities
+                self.entropies = entropies
         
         del Xy, prev_exprs
 
