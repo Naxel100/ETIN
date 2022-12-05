@@ -144,7 +144,8 @@ class Expression():
             trigo_offspring = False if not function_stack else function_stack[-1]['trigo_offspring']
             exp_offspring = False if not function_stack else function_stack[-1]['exp_offspring']
             needed = self.language.symbol_to_token[choice].arity - 1
-            if function_stack and function_stack[-1]['function'] == choice:  # If same kind of operand
+            if function_stack and (function_stack[-1]['function'] == choice or
+                                   self.language.symbol_to_token[choice].inv == choice):  # If same kind of operand
                 might_use_constant = False
                 new_set = function_stack[-1]['distributive']
                 needed += function_stack[-1]['needed']
@@ -231,7 +232,8 @@ class Expression():
             trigo_offspring = False if First else function_stack[-1]['trigo_offspring']
             exp_offspring = False if First else function_stack[-1]['exp_offspring']
             needed = self.language.symbol_to_token[choice].arity - 1
-            if not First and function_stack[-1]['function'] == choice:  # If same kind of operand
+            if not First and (function_stack[-1]['function'] == choice or
+                              self.language.symbol_to_token[choice].inv == choice):  # If same kind of operand
                 new_set = function_stack[-1]['distributive']
                 needed += function_stack[-1]['needed']
             if choice in ['sin', 'cos', 'tan', 'tanh', 'sinh', 'cosh', 'arcsin', 'arccos', 'arctan', 'arctanh', 'arccosh', 'arcsinh', 'arccosh', 'arctanh']:
@@ -307,7 +309,7 @@ class Expression():
             prev_exprs = torch.cat((prev_exprs, to_append), dim=1) if prev_exprs is not None else to_append
 
             if record_probabilities:
-                entropies.append(-torch.sum(pk * torch.log(P_original[-1])))
+                entropies.append(-torch.sum(P_original[-1] * torch.log(P_original[-1])))
                 probabilities.append(P_original[-1, token_idx])
                 self.probabilities = probabilities
                 self.entropies = entropies

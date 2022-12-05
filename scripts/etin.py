@@ -43,8 +43,8 @@ class ETIN():
         if not self.from_ckpt:
             self.etin_model = ETIN_model(model_cfg, self.language.info_for_model)
         else:
-            self.etin_model = ETIN_model.load_from_checkpoint(model_cfg.from_path, cfg=self.model_cfg, info_for_model=self.language.info_for_model)
-
+            print('Leyendo modelo de path:', model_cfg.from_path)
+            self.etin_model = ETIN_model.load_from_checkpoint(model_cfg.from_path, cfg=self.model_cfg, info_for_model=self.language.info_for_model, strict=False)
 
     def compute_complexity(self, traversal):
         complexity = 0
@@ -130,7 +130,7 @@ class ETIN():
                     error = error_function(y_pred, y)
                     complexity = self.compute_complexity(new_expr.traversal)
                     res.append({'expression': new_expr, 'error': error, 'complexity': complexity})
-                    if error < 1e-10:
+                    if error < 1e-8:
                         return res
                     error_mean += error
                     error_harmonic += 1/(error + 1e-5)
@@ -186,6 +186,8 @@ class ETIN():
             error = error_function(y_pred, y)
             complexity = self.compute_complexity(expr.traversal)
             res.append({'expression': expr, 'error': error, 'complexity': complexity})
+            if error < 1e-8:
+                return res
         return res
             
 
@@ -265,6 +267,9 @@ class ETIN():
 
 
     def rl_training(self, train_cfg):
+        import time
+        total_time = 0
+
         if train_cfg.seed is not None:
             seed_everything(train_cfg.seed)
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -292,13 +297,14 @@ class ETIN():
             else:
                 enc_src = None
 
+            ini = time.time()
             for _ in range(train_cfg.num_expressions):
                 # Generate an episode
                 new_expr = Expression(self.language, model=self.etin_model, prev_info=row, enc_src=enc_src,
                                       record_probabilities=True, discover_probability=discover_probability)
                 y_pred = new_expr.evaluate(row['X'])
-                if (np.isnan(y_pred).any() or np.abs(y_pred).max() > 1e5 or np.abs(y_pred).max() - np.abs(y_pred).min() == 0):
-                    continue
+                if (np.isnan(y_pred).any() or np.abs(y_pred).max() > 1e5):
+                    expression_reward, nrmse_res = 0, 1e5
 
                 expression_reward, nrmse_res = compute_reward(y_pred, row['y'], new_expr)
                 if expression_reward > max_reward:
@@ -307,7 +313,9 @@ class ETIN():
                     saved_entropies = new_expr.entropies
                 rewards.append(expression_reward)
                 nrmses.append(nrmse_res)
-                
+            
+            total_time += (time.time() - ini)
+
             if rewards and saved_probs:
                 control.scores.append(np.mean(rewards))
                 control.nrmses.append(np.mean(nrmses))
@@ -316,7 +324,7 @@ class ETIN():
                 b = history.max_scores[-1] if train_cfg.with_baseline and history.max_scores else 0
                 episode_rewards = [max_reward - b for _ in range(len(saved_probs))]
                 episode_rewards = torch.Tensor(episode_rewards).to(device)
-                episode_rewards = episode_rewards + train_cfg.entropy_weight * saved_entropies.to(device)
+                episode_rewards = episode_rewards + train_cfg.entropy_weight * torch.Tensor(saved_entropies).to(device)
                 policy_gradient = (-episode_rewards * log_probs).mean()
 
                 # Optimize
@@ -364,7 +372,7 @@ class ETIN():
                     'std_nrmses': history.std_nrmses
                 }
                 torch.save(state, train_cfg.model_path+'/model_'+str(episode + 1)+'.pt')
-
+        print(total_time, total_time/100)
 
 class ResultsContainer:
     def __init__(self):

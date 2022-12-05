@@ -164,7 +164,7 @@ def get_restrictions(restrictions):
     for restriction in restrictions:
         if restriction == 'no_inverse_parent':
             for symbol, token in Language.symbol_to_token.items():
-                if token.inv is not None:
+                if token.inv is not None and token.arity == 1:
                     result[symbol] = result.get(symbol, []) + [token.inv]
 
         elif restriction == 'no_sqrt_in_log':

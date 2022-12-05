@@ -8,6 +8,7 @@ import pytorch_lightning as pl
 
 class ETIN_model(pl.LightningModule):
     def __init__(self, cfg, info_for_model):
+        
         super().__init__()
         assert info_for_model['max_variables'] is not None
         self.padding_idx = info_for_model['padding_idx']

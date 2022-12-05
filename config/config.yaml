@@ -5,7 +5,7 @@ Language:
   prob_terminal: 0.5
   restrictions: ['no_inverse_parent', 'no_sqrt_in_log', 'no_double_division', 'no_sqrt_in_sqrt', 
                  'no_trigo_in_log', 'no_trigo_offspring', 'no_log_in_trigo']
-  max_variables: 3
+  max_variables: 5
   max_len: 15
   use_constants: True
   prob_add_const: 0.08
@@ -14,7 +14,8 @@ Language:
 
 # Properties of the model
 Model:
-  from_path: '/home/gridsan/amorenas/ETIN/outputs/2022-09-23/20-26-50/Weights/log_epoch=18_val_loss=0.85.ckpt'
+  from_path: '/home/gridsan/amorenas/ETIN/outputs/2022-10-21/19-21-31/Weights/log_epoch=31_val_loss=0.84.ckpt'
+#   from_path: '/home/gridsan/amorenas/ETIN3/outputs/rl_5vars/model_1000000.pt'
   dim_hidden: 512
   dropout: 0.0
   dim_feedforward: 512
@@ -23,8 +24,8 @@ Model:
   num_heads: 8
   inducing_points: 50
   norm_encoder: True
-  layers_encoder: 5
-  layers_decoder: 5
+  layers_encoder: 8
+  layers_decoder: 8
   num_features: 10
 
 # Train configuration
@@ -41,16 +42,16 @@ Train:
     seed: null
 
   RL_Training:
-    episodes: 50000
-    num_expressions: 2
+    episodes: 1000000
+    num_expressions: 5
     complexity_penalty: 0.00
     squishing_scale: 1
-    lr: 0.0000001
+    lr: 0.0000005
     discover_probability: 1.
     decay: 1.
     control_each: 100
-    save_each: 10000
-    model_path: '/home/gridsan/amorenas/ETIN3/outputs/prueba_con_baseline1'
-    seed: 69
-    entropy_weight: 0.05
-    with_baseline: True
+    save_each: 50000
+    model_path: '/home/gridsan/amorenas/ETIN3/outputs/rl_5vars'
+    seed: 12
+    entropy_weight: 0.00
+    with_baseline: False
